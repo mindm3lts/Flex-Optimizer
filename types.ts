@@ -1,9 +1,5 @@
 export type PackageType = "Box" | "Envelope" | "Plastic Bag" | "Custom Sized" | "Unknown";
 
-export type StopType = "House" | "Apartment" | "Business" | "Locker" | "Unknown";
-
-export type RouteStopStatus = 'pending' | 'delivered' | 'attempted' | 'skipped';
-
 export interface RouteStop {
   originalStopNumber: number;
   street: string;
@@ -15,12 +11,6 @@ export interface RouteStop {
   tba: string;
   packageLabel: string;
   type?: 'delivery' | 'location';
-  deliveryWindowEnd?: string; // e.g., "17:00"
-  stopType: StopType;
-  isPriority?: boolean;
-  status?: RouteStopStatus;
-  completedAt?: string;
-  isCurrentStop?: boolean;
 }
 
 export interface RouteSummary {
@@ -38,20 +28,7 @@ export interface TrafficInfo {
   lastUpdated: string;
 }
 
-export type WeatherIconType = "SUNNY" | "CLOUDY" | "RAINY" | "SNOWY" | "THUNDERSTORM" | "WINDY" | "PARTLY_CLOUDY" | "UNKNOWN";
-
-export interface WeatherInfo {
-  temperature: string;
-  condition: string;
-  icon: WeatherIconType;
-}
-
 export interface Geolocation {
   lat: number;
   lon: number;
-}
-
-export interface AiSettings {
-  provider: 'gemini' | string; // Allow for future providers
-  model: string;
 }

@@ -1,31 +1,51 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Flex Route Optimizer</title>
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#0891b2" />
-    <link rel="apple-touch-icon" href="/icon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&display=swap" rel="stylesheet">
-<script type="importmap">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Orbitron', 'sans-serif'],
+            },
+          },
+        },
+      }
+    </script>
+  <script type="importmap">
 {
   "imports": {
-    "react": "https://aistudiocdn.com/react@^19.1.1",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
     "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.17.0",
-    "vite": "https://aistudiocdn.com/vite@^7.1.4",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.0.2"
+    "react-native": "https://aistudiocdn.com/react-native@^0.81.1",
+    "@react-native-async-storage/async-storage": "https://aistudiocdn.com/@react-native-async-storage/async-storage@^2.2.0",
+    "expo-status-bar": "https://aistudiocdn.com/expo-status-bar@^2.2.3",
+    "expo": "https://aistudiocdn.com/expo@^53.0.22",
+    "react-native-svg": "https://aistudiocdn.com/react-native-svg@^15.12.1",
+    "react-native-gesture-handler": "https://aistudiocdn.com/react-native-gesture-handler@^2.28.0",
+    "expo-image-picker": "https://aistudiocdn.com/expo-image-picker@^16.1.4",
+    "nativewind": "https://aistudiocdn.com/nativewind@^4.1.23",
+    "expo-file-system": "https://aistudiocdn.com/expo-file-system@^18.1.11",
+    "@react-native-picker/picker": "https://aistudiocdn.com/@react-native-picker/picker@^2.11.1",
+    "expo-location": "https://aistudiocdn.com/expo-location@^18.1.6",
+    "react-native-draggable-flatlist": "https://aistudiocdn.com/react-native-draggable-flatlist@^4.0.3"
   }
 }
 </script>
 </head>
-  <body>
+  <body class="bg-gray-900 text-white">
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

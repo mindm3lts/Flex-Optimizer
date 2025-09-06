@@ -1,6 +1,6 @@
 {
-  "name": "Flex Route Optimizer",
-  "description": "An open-source tool for Amazon Flex drivers to optimize their routes using AI. Upload screenshots of your itinerary, and the app extracts addresses to generate optimized routes for Google Maps.",
+  "name": "Copy of Flex Route Optimizer",
+  "description": "An application for Amazon Flex drivers to optimize their routes. Users upload a screenshot of their route, and the app extracts addresses to generate optimized links for Google Maps and Apple Maps.",
   "requestFramePermissions": [
     "geolocation"
   ]

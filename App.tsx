@@ -1,115 +1,45 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, Alert, Image, Platform, AppState } from 'react-native';
+import { styled } from "nativewind";
 import { Header } from './components/Header';
-import { FileUpload } from './components/FileUpload';
 import { RouteDisplay } from './components/RouteDisplay';
 import { Spinner } from './components/Spinner';
-import { LiveConditions } from './components/LiveConditions';
-import * as aiService from './services/aiService';
+import { processRouteScreenshot, optimizeRouteOrder, getRouteSummary, getLiveTraffic } from './services/geminiService';
 import type { RouteStop, RouteSummary, TrafficInfo } from './types';
-import { InfoIcon, SaveIcon, LoadIcon, CheckIcon, WarningIcon, PlusCircleIcon } from './components/icons';
+import { InfoIcon, SaveIcon, LoadIcon, AndroidIcon, CheckIcon, WarningIcon, PlusCircleIcon, UploadIcon } from './components/icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { StatusBar } from 'expo-status-bar';
+
+
+const StyledSafeAreaView = styled(SafeAreaView);
+const StyledView = styled(View);
+const StyledText = styled(Text);
+const StyledTouchableOpacity = styled(TouchableOpacity);
+const StyledImage = styled(Image);
+const StyledScrollView = styled(ScrollView);
 
 const App: React.FC = () => {
-  const [screenshotFiles, setScreenshotFiles] = useState<File[]>([]);
-  const [screenshotPreviews, setScreenshotPreviews] = useState<string[]>([]);
+  const [screenshotAssets, setScreenshotAssets] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [route, setRoute] = useState<RouteStop[] | null>(null);
   const [summary, setSummary] = useState<RouteSummary | null>(null);
   const [trafficInfo, setTrafficInfo] = useState<TrafficInfo | null>(null);
-  const [appStatus, setAppStatus] = useState<'idle' | 'processing' | 'optimizing'>('idle');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
   const [isSummaryLoading, setIsSummaryLoading] = useState<boolean>(false);
   const [isTrafficLoading, setIsTrafficLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSavedRoute, setHasSavedRoute] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
-
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    try {
-        const savedTheme = localStorage.getItem('flex-optimizer-theme') as 'light' | 'dark' | null;
-        if (savedTheme) return savedTheme;
-    } catch (e) {
-        console.error("Could not load theme from localStorage", e);
-    }
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  });
-
-  const addMoreInputRef = useRef<HTMLInputElement>(null);
   
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    try {
-        localStorage.setItem('flex-optimizer-theme', theme);
-    } catch (e) {
-        console.error("Could not save theme to localStorage", e);
-    }
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
-  };
-
-  const updateRouteAndCurrentStop = (newRoute: RouteStop[] | null) => {
-    if (!newRoute) {
-        setRoute(null);
-        return;
-    }
-    let currentStopFound = false;
-    const updatedRoute = newRoute.map(stop => {
-        const isCompleted = stop.status && stop.status !== 'pending';
-        if (stop.type === 'location' || isCompleted) {
-            return { ...stop, isCurrentStop: false };
-        }
-        if (!currentStopFound) {
-            currentStopFound = true;
-            return { ...stop, isCurrentStop: true };
-        }
-        return { ...stop, isCurrentStop: false };
-    });
-    setRoute(updatedRoute);
-  };
-
-
-  useEffect(() => {
-    try {
-        const savedRoute = localStorage.getItem('flex-optimizer-saved-route');
+    const checkSavedRoute = async () => {
+        const savedRoute = await AsyncStorage.getItem('flex-optimizer-saved-route');
         setHasSavedRoute(!!savedRoute);
-    } catch (e) {
-        console.error("Could not load user data from localStorage", e);
-    }
-
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const routeData = urlParams.get('routeData');
-
-    if (routeData) {
-      try {
-        const decodedData = atob(decodeURIComponent(routeData));
-        const parsedRoute = JSON.parse(decodedData) as RouteStop[];
-
-        if (Array.isArray(parsedRoute) && parsedRoute.length > 0 && 'street' in parsedRoute[0]) {
-          updateRouteAndCurrentStop(parsedRoute);
-          setScreenshotFiles([]);
-          setScreenshotPreviews([]);
-          setError(null);
-        } else {
-          throw new Error("Invalid route data in URL.");
-        }
-      } catch (e) {
-        console.error("Failed to load route from URL:", e);
-        setError("Could not load shared route. The link may be corrupted or expired.");
-      } finally {
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    }
-  }, []);
-  
-  useEffect(() => {
-    return () => {
-      screenshotPreviews.forEach(URL.revokeObjectURL);
     };
-  }, [screenshotPreviews]);
+    checkSavedRoute();
+  }, []);
 
   useEffect(() => {
     const fetchSummary = async () => {
@@ -118,25 +48,22 @@ const App: React.FC = () => {
         setIsSummaryLoading(true);
         const existingBlockCode = summary?.routeBlockCode;
         try {
-          const summaryData = await aiService.getRouteSummary(deliveryStops);
+          const summaryData = await getRouteSummary(deliveryStops);
           setSummary({ ...summaryData, routeBlockCode: existingBlockCode });
         } catch (err) {
           console.error("Failed to fetch route summary:", err);
-          setError(err instanceof Error ? err.message : 'An unknown error occurred while fetching summary.');
           setSummary({ totalStops: deliveryStops.length, totalDistance: "N/A", totalTime: "N/A", routeBlockCode: existingBlockCode });
         } finally {
           setIsSummaryLoading(false);
         }
       } else if (route) {
         setSummary({ totalStops: 0, totalDistance: "N/A", totalTime: "N/A", routeBlockCode: summary?.routeBlockCode });
-      }
-      else {
+      } else {
         setSummary(null);
       }
     };
-
     fetchSummary();
-  }, [route, summary?.routeBlockCode]);
+  }, [route]);
 
   useEffect(() => {
     const deliveryStops = route?.filter(s => s.type !== 'location') ?? [];
@@ -150,7 +77,7 @@ const App: React.FC = () => {
     const fetchTraffic = async () => {
       setIsTrafficLoading(true);
       try {
-        const trafficData = await aiService.getLiveTraffic(deliveryStops);
+        const trafficData = await getLiveTraffic(deliveryStops);
         setTrafficInfo(trafficData);
       } catch (err) {
         console.error("Failed to fetch live traffic:", err);
@@ -174,61 +101,54 @@ const App: React.FC = () => {
     };
   }, [route]);
 
-  const handleFileChange = (files: File[], mode: 'replace' | 'append' = 'replace') => {
-    if (files.length === 0) return;
 
-    if (mode === 'replace') {
-        screenshotPreviews.forEach(URL.revokeObjectURL);
-        setScreenshotFiles(files);
-        setScreenshotPreviews(files.map(file => URL.createObjectURL(file)));
-    } else {
-        setScreenshotFiles(prev => [...prev, ...files]);
-        setScreenshotPreviews(prev => [...prev, ...files.map(file => URL.createObjectURL(file))]);
-    }
-
-    updateRouteAndCurrentStop(null);
-    setError(null);
-  };
-  
-  const handleAddMoreClick = () => {
-    addMoreInputRef.current?.click();
-  };
-
-  const handleAddMoreFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files && files.length > 0) {
-      handleFileChange(Array.from(files), 'append');
-    }
-    if (addMoreInputRef.current) {
-      addMoreInputRef.current.value = "";
-    }
-  };
-
-  const handleReset = () => {
-    screenshotPreviews.forEach(URL.revokeObjectURL);
-    setScreenshotFiles([]);
-    setScreenshotPreviews([]);
-    updateRouteAndCurrentStop(null);
-    setError(null);
-    setAppStatus('idle');
-  };
-
-  const handleProcessRoute = useCallback(async () => {
-    if (screenshotFiles.length === 0) {
-      setError('Please upload one or more screenshots first.');
+  const handleSelectImages = async (mode: 'replace' | 'append' = 'replace') => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Please grant permission to access your photo library to select screenshots.');
       return;
     }
 
-    setAppStatus('processing');
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets) {
+      if (mode === 'replace') {
+        setScreenshotAssets(result.assets);
+      } else {
+        setScreenshotAssets(prev => [...prev, ...result.assets]);
+      }
+      setRoute(null);
+      setError(null);
+    }
+  };
+  
+  const handleReset = () => {
+    setScreenshotAssets([]);
+    setRoute(null);
     setError(null);
-    updateRouteAndCurrentStop(null);
+    setIsLoading(false);
+  };
+
+  const handleProcessRoute = useCallback(async () => {
+    if (screenshotAssets.length === 0) {
+      setError('Please select one or more screenshots first.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setRoute(null);
     setSummary(null);
 
     try {
       const allResults = await Promise.all(
-        screenshotFiles.map(file => aiService.processRouteScreenshot(file))
+        screenshotAssets.map(asset => processRouteScreenshot(asset))
       );
-
+      
       const allStops = allResults.flatMap(res => res.stops);
       const routeBlockCode = allResults.find(res => res.routeBlockCode)?.routeBlockCode;
 
@@ -243,7 +163,7 @@ const App: React.FC = () => {
       
       if (addresses && addresses.length > 0) {
         const sortedAddresses = [...addresses].sort((a, b) => a.originalStopNumber - b.originalStopNumber);
-        updateRouteAndCurrentStop(sortedAddresses);
+        setRoute(sortedAddresses);
         setSummary({ totalStops: sortedAddresses.length, totalDistance: "...", totalTime: "...", routeBlockCode });
       } else {
         setError('Could not extract any addresses from the images. Please try other screenshots.');
@@ -252,57 +172,56 @@ const App: React.FC = () => {
       console.error(err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred. Please try again.');
     } finally {
-      setAppStatus('idle');
+      setIsLoading(false);
     }
-  }, [screenshotFiles]);
+  }, [screenshotAssets]);
 
-  const handleSaveRoute = useCallback(() => {
+  const handleSaveRoute = useCallback(async () => {
     if (route) {
       try {
-        localStorage.setItem('flex-optimizer-saved-route', JSON.stringify(route));
+        await AsyncStorage.setItem('flex-optimizer-saved-route', JSON.stringify(route));
         setHasSavedRoute(true);
         setSaveStatus('saved');
         setTimeout(() => setSaveStatus('idle'), 2000);
       } catch (e) {
         console.error("Failed to save route:", e);
-        setError("Could not save the route to local storage. It might be full.");
+        setError("Could not save the route to device storage.");
       }
     }
   }, [route]);
 
-  const handleLoadRoute = useCallback(() => {
-    const savedRouteJSON = localStorage.getItem('flex-optimizer-saved-route');
+  const handleLoadRoute = useCallback(async () => {
+    const savedRouteJSON = await AsyncStorage.getItem('flex-optimizer-saved-route');
     if (savedRouteJSON) {
       try {
         const savedRoute = JSON.parse(savedRouteJSON) as RouteStop[];
         if (Array.isArray(savedRoute) && savedRoute.length > 0) {
-            updateRouteAndCurrentStop(savedRoute);
-            setScreenshotFiles([]);
-            setScreenshotPreviews([]);
+            setRoute(savedRoute);
+            setScreenshotAssets([]);
             setError(null);
-            setAppStatus('idle');
+            setIsLoading(false);
         } else {
             throw new Error("Saved data is not a valid route.");
         }
       } catch (e) {
         console.error("Failed to parse saved route:", e);
         setError("Could not load saved route. The data might be corrupted.");
-        localStorage.removeItem('flex-optimizer-saved-route');
+        await AsyncStorage.removeItem('flex-optimizer-saved-route');
         setHasSavedRoute(false);
       }
     }
   }, []);
   
-  const handleAiOptimize = useCallback(async (useLocation: boolean, avoidLeftTurns: boolean) => {
+  const handleAiOptimize = useCallback(async (useLocation: boolean) => {
     const deliveryStops = route?.filter(s => s.type !== 'location') ?? [];
     if (deliveryStops.length < 1) return;
 
-    setAppStatus('optimizing');
+    setIsOptimizing(true);
     setError(null);
 
     const performOptimization = async (location?: { lat: number, lon: number }) => {
       try {
-        const optimized = await aiService.optimizeRouteOrder(deliveryStops, location, avoidLeftTurns);
+        const optimized = await optimizeRouteOrder(deliveryStops, location);
         if (location) {
           const currentLocationStop: RouteStop = {
             originalStopNumber: 0,
@@ -315,191 +234,206 @@ const App: React.FC = () => {
             tba: '',
             packageLabel: '',
             type: 'location',
-            stopType: 'Unknown',
-            status: 'delivered'
           };
-          updateRouteAndCurrentStop([currentLocationStop, ...optimized]);
+          setRoute([currentLocationStop, ...optimized]);
         } else {
-          updateRouteAndCurrentStop(optimized);
+          setRoute(optimized);
         }
       } catch (err) {
         console.error(err);
         setError(err instanceof Error ? err.message : 'An unknown error occurred during optimization.');
       } finally {
-        setAppStatus('idle');
+        setIsOptimizing(false);
       }
     };
 
     if (useLocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          performOptimization({ lat: latitude, lon: longitude });
-        },
-        (geoError) => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setError('Permission to access location was denied. Please grant location permission in your device settings.');
+        setIsOptimizing(false);
+        return;
+      }
+
+      try {
+        const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        const { latitude, longitude } = location.coords;
+        performOptimization({ lat: latitude, lon: longitude });
+      } catch (geoError) {
           console.error("Geolocation error:", geoError);
-          let errorMessage = "Could not get your location. ";
-          switch (geoError.code) {
-            case geoError.PERMISSION_DENIED:
-              errorMessage += "Please grant location permission and try again.";
-              break;
-            default:
-              errorMessage += "Please check your device's location settings.";
-              break;
-          }
-          setError(errorMessage);
-          setAppStatus('idle');
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
+          setError("Could not get your location. Please check your device's location settings and try again.");
+          setIsOptimizing(false);
+      }
     } else {
       performOptimization();
     }
   }, [route]);
 
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans flex flex-col items-center text-gray-900 dark:text-white transition-colors duration-300">
-      <div className="w-full max-w-md mx-auto p-4 flex flex-col flex-grow">
-        <Header 
-          theme={theme}
-          toggleTheme={toggleTheme}
-        />
-        <main className="flex-grow flex flex-col mt-6">
-          {screenshotPreviews.length === 0 && !route && (
-            <>
-              <FileUpload onFileChange={handleFileChange} />
-              
-              <LiveConditions />
+  const showNativeFeatureInfo = () => {
+    Alert.alert(
+      "Automatic Route Sync",
+      "A future native app version will automatically import your route—no screenshots needed! This version uses Android's Accessibility Service to securely read your route directly from the Flex app."
+    );
+  };
 
-              <div className="mt-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
-                <div className="flex items-start">
-                  <InfoIcon className="w-6 h-6 text-cyan-600 dark:text-cyan-400 mr-3 flex-shrink-0 mt-1" />
-                  <div>
-                    <h3 className="font-semibold text-cyan-600 dark:text-cyan-400">Screenshot Tips</h3>
-                    <ul className="list-disc list-inside text-gray-500 dark:text-gray-400 text-sm mt-1 space-y-1">
-                      <li>Upload multiple screenshots for your entire block.</li>
-                      <li>For best results, use standard screenshots instead of one long, scrolling screenshot.</li>
-                      <li>Ensure all stops are visible on the screen.</li>
-                      <li>Text must be clear and not blurry.</li>
-                      <li>Avoid any screen glare or obstructions.</li>
-                    </ul>
-                     <div className="mt-3 pt-3 border-t border-dashed border-gray-300 dark:border-gray-700 flex items-start text-yellow-600 dark:text-yellow-300/80">
-                        <WarningIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
-                        <p className="text-xs">
-                            For long routes (&gt;20 stops), Google Maps links will be split into multiple parts.
-                        </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+  return (
+    <StyledSafeAreaView className="flex-1 bg-gray-900">
+      <StatusBar style="light" />
+      <StyledView className="flex-1 p-4">
+        <Header />
+        <StyledView className="flex-1 mt-6">
+          {screenshotAssets.length === 0 && !route && (
+            <>
+              <StyledTouchableOpacity
+                className="flex-grow items-center justify-center rounded-lg border-2 border-dashed border-gray-600 p-12 hover:border-cyan-400"
+                onPress={() => handleSelectImages('replace')}
+              >
+                <UploadIcon className="h-12 w-12 text-gray-500" />
+                <StyledText className="mt-2 text-sm font-medium text-gray-300">
+                  Tap to select screenshots
+                </StyledText>
+              </StyledTouchableOpacity>
+              
+              <StyledView className="mt-4 p-4 bg-gray-800 border border-gray-700 rounded-lg">
+                <StyledView className="flex-row items-start">
+                  <InfoIcon className="w-6 h-6 text-cyan-400 mr-3 shrink-0 mt-1" />
+                  <StyledView>
+                    <StyledText className="font-semibold text-cyan-400">Screenshot Tips</StyledText>
+                    <StyledView className="list-disc list-inside text-gray-400 text-sm mt-1 space-y-1">
+                      <StyledText className="text-gray-400 text-sm">● Upload multiple screenshots for your entire block.</StyledText>
+                      <StyledText className="text-gray-400 text-sm">● Ensure all stops are visible on the screen.</StyledText>
+                      <StyledText className="text-gray-400 text-sm">● Text must be clear and not blurry.</StyledText>
+                      <StyledText className="text-gray-400 text-sm">● Avoid any screen glare or obstructions.</StyledText>
+                    </StyledView>
+                     <StyledView className="mt-3 pt-3 border-t border-dashed border-gray-700 flex-row items-start text-yellow-300/80">
+                        <WarningIcon className="w-5 h-5 mr-2 shrink-0 mt-0.5" />
+                        <StyledText className="text-xs shrink">
+                            For long routes (>20 stops), Google Maps links will be split into multiple parts.
+                        </StyledText>
+                    </StyledView>
+                  </StyledView>
+                </StyledView>
+              </StyledView>
 
               {hasSavedRoute && (
-                <button
-                  onClick={handleLoadRoute}
-                  className="mt-4 w-full flex items-center justify-center bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-lg transition duration-300"
+                <StyledTouchableOpacity
+                  onPress={handleLoadRoute}
+                  className="mt-4 w-full flex-row items-center justify-center bg-gray-600 active:bg-gray-700 py-3 px-4 rounded-lg"
                 >
-                  <LoadIcon className="w-5 h-5 mr-2" />
-                  Load Saved Route
-                </button>
+                  <LoadIcon className="w-5 h-5 mr-2 text-gray-200" />
+                  <StyledText className="text-gray-200 font-bold">Load Saved Route</StyledText>
+                </StyledTouchableOpacity>
               )}
+              
+              <StyledView className="mt-4 p-4 bg-gray-800 border-2 border-dashed border-green-500/50 rounded-lg">
+                <StyledView className="flex-row items-start">
+                  <AndroidIcon className="w-8 h-8 text-green-400 mr-3 shrink-0 mt-1" />
+                  <StyledView className="flex-1">
+                    <StyledText className="font-semibold text-green-400">Coming Soon: Automatic Sync</StyledText>
+                    <StyledText className="text-gray-400 text-sm mt-1">
+                      A future native Android app version will automatically import your route—no screenshots needed!
+                    </StyledText>
+                     <StyledTouchableOpacity
+                        onPress={showNativeFeatureInfo}
+                        className="mt-3 w-full flex-row items-center justify-center bg-green-600/50 py-2 px-4 rounded-lg"
+                      >
+                        <InfoIcon className="w-5 h-5 mr-2 text-green-200" />
+                        <StyledText className="text-green-200 font-bold">Learn More</StyledText>
+                      </StyledTouchableOpacity>
+                  </StyledView>
+                </StyledView>
+              </StyledView>
             </>
           )}
 
-          {screenshotPreviews.length > 0 && !route && (
-             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg">
-                <h2 className="text-lg font-semibold text-cyan-600 dark:text-cyan-400 mb-3 text-center">
-                  {screenshotPreviews.length} Screenshot{screenshotPreviews.length > 1 ? 's' : ''} Selected
-                </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-80 overflow-y-auto pr-2">
-                  {screenshotPreviews.map((previewUrl, index) => (
-                    <img key={index} src={previewUrl} alt={`Screenshot preview ${index + 1}`} className="rounded-md w-full h-auto object-cover" />
+          {screenshotAssets.length > 0 && !route && (
+             <StyledView className="bg-gray-800 rounded-lg p-4 shadow-lg">
+                <StyledText className="text-lg font-semibold text-cyan-400 mb-3 text-center">
+                  {screenshotAssets.length} Screenshot{screenshotAssets.length > 1 ? 's' : ''} Selected
+                </StyledText>
+                <StyledScrollView className="max-h-80" contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {screenshotAssets.map((asset, index) => (
+                    <StyledImage key={index} source={{ uri: asset.uri }} className="rounded-md w-24 h-40 object-cover m-1" />
                   ))}
-                </div>
-                 <input
-                  type="file"
-                  ref={addMoreInputRef}
-                  onChange={handleAddMoreFiles}
-                  multiple
-                  className="hidden"
-                  accept="image/png, image/jpeg, image/webp"
-                />
-                <button
-                  onClick={handleAddMoreClick}
-                  className="mt-4 w-full flex items-center justify-center bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-lg transition duration-300"
+                </StyledScrollView>
+                <StyledTouchableOpacity
+                  onPress={() => handleSelectImages('append')}
+                  className="mt-4 w-full flex-row items-center justify-center bg-gray-600 active:bg-gray-700 py-3 px-4 rounded-lg"
                 >
-                  <PlusCircleIcon className="w-5 h-5 mr-2" />
-                  Add More Screenshots
-                </button>
-              </div>
+                  <PlusCircleIcon className="w-5 h-5 mr-2 text-gray-200" />
+                  <StyledText className="text-gray-200 font-bold">Add More Screenshots</StyledText>
+                </StyledTouchableOpacity>
+              </StyledView>
           )}
 
-          {appStatus === 'processing' && <Spinner />}
+          {isLoading && <Spinner />}
 
           {error && (
-            <div className="bg-red-100 border border-red-300 text-red-800 dark:bg-red-900/50 dark:border-red-700 dark:text-red-300 px-4 py-3 rounded-lg relative mt-6" role="alert">
-              <strong className="font-bold">Error: </strong>
-              <span className="block sm:inline">{error}</span>
-            </div>
+            <StyledView className="bg-red-900/50 border border-red-700 px-4 py-3 rounded-lg mt-6">
+              <StyledText className="text-red-300"><StyledText className="font-bold">Error: </StyledText>{error}</StyledText>
+            </StyledView>
           )}
 
-          {route && appStatus !== 'processing' && (
+          {route && !isLoading && (
             <RouteDisplay
               route={route}
               summary={summary}
               trafficInfo={trafficInfo}
-              onRouteUpdate={updateRouteAndCurrentStop}
+              isSummaryLoading={isSummaryLoading}
+              isTrafficLoading={isTrafficLoading}
+              onRouteUpdate={setRoute}
               onAiOptimize={handleAiOptimize}
-              isOptimizing={appStatus === 'optimizing'}
+              isOptimizing={isOptimizing}
             />
           )}
 
-          <div className="mt-auto pt-6 flex flex-col space-y-3">
-              {screenshotFiles.length > 0 && !route && (
-                  <button
-                    onClick={handleProcessRoute}
-                    disabled={appStatus === 'processing'}
-                    className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-lg flex items-center justify-center disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed disabled:transform-none disabled:opacity-50"
+          <StyledView className="mt-auto pt-6 space-y-3">
+              {screenshotAssets.length > 0 && !isLoading && !route && (
+                  <StyledTouchableOpacity
+                    onPress={handleProcessRoute}
+                    disabled={isLoading}
+                    className="w-full bg-cyan-500 active:bg-cyan-600 py-3 px-4 rounded-lg shadow-lg flex-row items-center justify-center disabled:bg-gray-600"
                   >
-                    Process Route
-                  </button>
+                    <StyledText className="text-white font-bold">Process Route</StyledText>
+                  </StyledTouchableOpacity>
               )}
               
-              {route && appStatus !== 'processing' && (
-                <button
-                  onClick={handleSaveRoute}
+              {route && !isLoading && (
+                <StyledTouchableOpacity
+                  onPress={handleSaveRoute}
                   disabled={saveStatus === 'saved'}
-                  className={`w-full font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out shadow-lg flex items-center justify-center ${
+                  className={`w-full font-bold py-3 px-4 rounded-lg shadow-lg flex-row items-center justify-center ${
                     saveStatus === 'saved' 
-                      ? 'bg-green-600 dark:bg-green-700 cursor-not-allowed' 
-                      : 'bg-green-500 hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700 transform hover:scale-105'
+                      ? 'bg-green-700' 
+                      : 'bg-green-600 active:bg-green-700'
                   }`}
                 >
                   {saveStatus === 'saved' ? (
                     <>
-                      <CheckIcon className="w-6 h-6 mr-2" />
-                      Route Saved!
+                      <CheckIcon className="w-6 h-6 mr-2 text-white" />
+                      <StyledText className="text-white font-bold">Route Saved!</StyledText>
                     </>
                   ) : (
                     <>
-                      <SaveIcon className="w-5 h-5 mr-2" />
-                      Save Optimized Route
+                      <SaveIcon className="w-5 h-5 mr-2 text-white" />
+                      <StyledText className="text-white font-bold">Save Optimized Route</StyledText>
                     </>
                   )}
-                </button>
+                </StyledTouchableOpacity>
               )}
 
-              {(screenshotFiles.length > 0 || route) && (
-                <button
-                  onClick={handleReset}
-                  className="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 dark:bg-gray-600 dark:hover:bg-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg transition duration-300"
+              {(screenshotAssets.length > 0 || route) && (
+                <StyledTouchableOpacity
+                  onPress={handleReset}
+                  className="w-full bg-gray-600 active:bg-gray-700 py-3 px-4 rounded-lg"
                 >
-                  Start Over
-                </button>
+                  <StyledText className="text-gray-200 font-bold text-center">Start Over</StyledText>
+                </StyledTouchableOpacity>
               )}
-          </div>
-        </main>
-      </div>
-    </div>
+          </StyledView>
+        </StyledView>
+      </StyledView>
+    </StyledSafeAreaView>
   );
 };
 
