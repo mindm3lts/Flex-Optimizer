@@ -1,10 +1,12 @@
 import React, { useMemo, useState, useRef } from 'react';
 import type { RouteStop, PackageType } from '../types';
-import { GoogleMapsIcon, AppleMapsIcon, DragHandleIcon, TrashIcon, BoxIcon, EnvelopeIcon, PackageIcon, SortIcon, WarningIcon } from './icons';
+import { GoogleMapsIcon, AppleMapsIcon, DragHandleIcon, TrashIcon, BoxIcon, EnvelopeIcon, PackageIcon, SortIcon, WarningIcon, SparklesIcon } from './icons';
 
 interface RouteDisplayProps {
   route: RouteStop[];
   onRouteUpdate: (newRoute: RouteStop[]) => void;
+  onAiOptimize: () => Promise<void>;
+  isOptimizing: boolean;
 }
 
 const packageTypes: PackageType[] = ["Box", "Envelope", "Plastic Bag", "Custom Sized", "Unknown"];
@@ -50,7 +52,7 @@ const generateMapsUrl = (platform: 'google' | 'apple', stops: RouteStop[]): stri
   }
 };
 
-export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, onRouteUpdate }) => {
+export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, onRouteUpdate, onAiOptimize, isOptimizing }) => {
   const googleMapsUrl = useMemo(() => generateMapsUrl('google', route), [route]);
   const appleMapsUrl = useMemo(() => generateMapsUrl('apple', route), [route]);
 
@@ -120,16 +122,28 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, onRouteUpdate
 
   return (
     <div className="mt-6 bg-gray-800 rounded-lg p-4 shadow-lg animate-fade-in flex flex-col flex-grow">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold text-cyan-400">Optimize Your Route</h2>
-        <button
-          onClick={handleResetOrder}
-          className="flex items-center px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-gray-200 text-sm font-semibold rounded-md transition-colors"
-          aria-label="Reset to original order"
-        >
-          <SortIcon className="w-4 h-4 mr-2" />
-          Reset to Original Order
-        </button>
+      <div className="mb-4">
+          <h2 className="text-xl font-bold text-cyan-400 text-center">Optimize Your Route</h2>
+          <div className="flex items-center space-x-2 mt-3">
+             <button
+                onClick={onAiOptimize}
+                disabled={isOptimizing || route.length < 2}
+                className="flex-1 flex items-center justify-center px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-md transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed"
+                aria-label="Optimize route with AI"
+              >
+                <SparklesIcon className={`w-5 h-5 mr-2 ${isOptimizing ? 'animate-pulse' : ''}`} />
+                {isOptimizing ? 'Optimizing...' : 'AI Optimize'}
+              </button>
+              <button
+                onClick={handleResetOrder}
+                disabled={isOptimizing}
+                className="flex items-center px-3 py-2 bg-gray-600 hover:bg-gray-700 text-gray-200 text-sm font-semibold rounded-md transition-colors disabled:opacity-50"
+                aria-label="Reset to original order"
+              >
+                <SortIcon className="w-5 h-5 mr-2" />
+                Reset Order
+              </button>
+          </div>
       </div>
       
       <div 

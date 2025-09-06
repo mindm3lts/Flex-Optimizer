@@ -3,7 +3,7 @@ import { Header } from './components/Header';
 import { FileUpload } from './components/FileUpload';
 import { RouteDisplay } from './components/RouteDisplay';
 import { Spinner } from './components/Spinner';
-import { processRouteScreenshot } from './services/geminiService';
+import { processRouteScreenshot, optimizeRouteOrder } from './services/geminiService';
 import type { RouteStop } from './types';
 import { InfoIcon, SaveIcon, LoadIcon, AndroidIcon, CheckIcon } from './components/icons';
 
@@ -12,6 +12,7 @@ const App: React.FC = () => {
   const [screenshotPreviews, setScreenshotPreviews] = useState<string[]>([]);
   const [route, setRoute] = useState<RouteStop[] | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSavedRoute, setHasSavedRoute] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
@@ -129,6 +130,22 @@ const App: React.FC = () => {
       }
     }
   }, []);
+  
+  const handleAiOptimize = useCallback(async () => {
+    if (!route || route.length < 2) return;
+    
+    setIsOptimizing(true);
+    setError(null);
+    try {
+      const optimized = await optimizeRouteOrder(route);
+      setRoute(optimized);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred during optimization.');
+    } finally {
+      setIsOptimizing(false);
+    }
+  }, [route]);
 
   const showNativeFeatureInfo = () => {
     alert(
@@ -216,7 +233,12 @@ const App: React.FC = () => {
           )}
 
           {route && !isLoading && (
-            <RouteDisplay route={route} onRouteUpdate={setRoute} />
+            <RouteDisplay
+              route={route}
+              onRouteUpdate={setRoute}
+              onAiOptimize={handleAiOptimize}
+              isOptimizing={isOptimizing}
+            />
           )}
 
           <div className="mt-auto pt-6 flex flex-col space-y-3">

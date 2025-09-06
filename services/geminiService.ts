@@ -119,3 +119,71 @@ export const processRouteScreenshot = async (file: File): Promise<RouteStop[]> =
     throw new Error("Failed to process the image with the AI. The image might be unclear or not a valid route screenshot.");
   }
 };
+
+
+export const optimizeRouteOrder = async (stops: RouteStop[]): Promise<RouteStop[]> => {
+  if (stops.length < 2) return stops;
+  if (!process.env.API_KEY) {
+    throw new Error("API_KEY environment variable is not set.");
+  }
+  
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  const promptInput = stops.map(s => ({
+    originalStopNumber: s.originalStopNumber,
+    address: `${s.street}, ${s.city}, ${s.state} ${s.zip}`
+  }));
+
+  const textPart = {
+    text: `You are an expert route optimization assistant for delivery drivers. I have a list of stops identified by their 'originalStopNumber' and address: ${JSON.stringify(promptInput)}. Reorder these stops to create the most efficient delivery route. Provide the response as a JSON array of objects, where each object contains only the 'originalStopNumber' in the new optimized sequence. For example, if the optimal route is stop 5, then stop 2, your response should be [{ "originalStopNumber": 5 }, { "originalStopNumber": 2 }].`
+  };
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: { parts: [textPart] },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              originalStopNumber: { type: Type.INTEGER },
+            },
+            required: ["originalStopNumber"],
+          },
+        },
+      },
+    });
+
+    const jsonText = response.text.trim();
+    let optimizedOrder: { originalStopNumber: number }[];
+    try {
+      optimizedOrder = JSON.parse(jsonText);
+    } catch (e) {
+      console.error("Failed to parse optimized order response:", jsonText, e);
+      throw new Error("AI returned an invalid format for the optimized route.");
+    }
+    
+    if (!Array.isArray(optimizedOrder) || optimizedOrder.some(item => typeof item.originalStopNumber !== 'number')) {
+      throw new Error("AI response for optimized route is not in the expected format.");
+    }
+
+    const stopMap = new Map(stops.map(s => [s.originalStopNumber, s]));
+    const reorderedStops = optimizedOrder
+      .map(orderInfo => stopMap.get(orderInfo.originalStopNumber))
+      .filter((s): s is RouteStop => s !== undefined);
+    
+    if (reorderedStops.length !== stops.length) {
+       console.warn("Optimized route length differs from original. Some stops may have been dropped by the AI.", { original: stops.length, optimized: reorderedStops.length });
+       // Fallback or partial result could be handled here. For now, we return what we got.
+    }
+
+    return reorderedStops;
+
+  } catch (error) {
+    console.error("Error calling Gemini API for route optimization:", error);
+    throw new Error("Failed to get an optimized route from the AI. Please try again.");
+  }
+};
