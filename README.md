@@ -54,14 +54,14 @@ npm install
 
 This application requires a Google Gemini API key to function. The key must be provided as an environment variable.
 
-1.  Create a file named `.env.local` in the root of the project directory.
+1.  Create a file named `.env` in the root of the project directory.
 2.  Add your API key to this file:
 
     ```
-    VITE_API_KEY=YOUR_GEMINI_API_KEY_HERE
+    API_KEY=YOUR_GEMINI_API_KEY_HERE
     ```
 
-    *Replace `YOUR_GEMINI_API_KEY_HERE` with your actual key.* Vite will automatically load this variable during the build process.
+    *Replace `YOUR_GEMINI_API_KEY_HERE` with your actual key.* The build process will automatically make this variable available to the application.
 
 ### Step 3: Initialize Capacitor
 

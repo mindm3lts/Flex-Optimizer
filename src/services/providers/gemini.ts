@@ -3,7 +3,6 @@ import type { RouteStop, RouteSummary, TrafficInfo, WeatherInfo, Geolocation, Ai
 
 // Initialize the Google GenAI client once using the environment variable.
 // The API key's presence is validated in the aiService layer before any provider functions are called.
-// FIX: Use process.env.API_KEY as per the guidelines.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
 const fileToBase64 = (file: File): Promise<string> =>
@@ -35,7 +34,6 @@ const handleGeminiError = (error: unknown, context: string): Error => {
     }
     
     if (errorDetails.includes('api key not valid')) {
-        // FIX: Update error message to reference API_KEY instead of VITE_API_KEY.
         message = 'Your API key is invalid or expired. Please ensure the API_KEY environment variable is set correctly.';
     } else if (errorDetails.includes('permission denied')) {
         message = 'The API key is missing permissions. Please check your Google Cloud project settings.';

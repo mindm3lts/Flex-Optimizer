@@ -20,9 +20,7 @@ const getProvider = (provider: string) => {
 }
 
 const validateSettings = () => {
-    // FIX: Use process.env.API_KEY as per the guidelines.
     if (!process.env.API_KEY) {
-        // FIX: Updated error message to be more general about environment variables.
         throw new Error("API key is missing. This app requires an API_KEY environment variable to be set. Please follow the setup instructions in the README.");
     }
 }

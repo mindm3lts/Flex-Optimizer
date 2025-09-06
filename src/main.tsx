@@ -11,7 +11,6 @@ if (!rootElement) {
 // PWA Service Worker Registration
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // FIX: Corrected typo from 'serviceworker' to 'serviceWorker'
     navigator.serviceWorker.register('/service-worker.js').then(registration => {
       console.log('SW registered: ', registration);
     }).catch(registrationError => {

@@ -2,8 +2,8 @@ const CACHE_NAME = 'flex-route-optimizer-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/main.tsx',
   '/icon.svg',
+  '/manifest.webmanifest'
 ];
 
 self.addEventListener('install', (event) => {
