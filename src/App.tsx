@@ -386,7 +386,7 @@ const App: React.FC = () => {
                      <div className="mt-3 pt-3 border-t border-dashed border-gray-300 dark:border-gray-700 flex items-start text-yellow-600 dark:text-yellow-300/80">
                         <WarningIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
                         <p className="text-xs">
-                            For long routes (>20 stops), Google Maps links will be split into multiple parts.
+                            For long routes (&gt;20 stops), Google Maps links will be split into multiple parts.
                         </p>
                     </div>
                   </div>
