@@ -27,7 +27,35 @@ const App: React.FC = () => {
   const [routeCount, setRouteCount] = useState<number>(0);
   const [isSubModalOpen, setIsSubModalOpen] = useState(false);
   
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+        const savedTheme = localStorage.getItem('flex-optimizer-theme') as 'light' | 'dark' | null;
+        if (savedTheme) return savedTheme;
+    } catch (e) {
+        console.error("Could not load theme from localStorage", e);
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+
   const addMoreInputRef = useRef<HTMLInputElement>(null);
+  
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    try {
+        localStorage.setItem('flex-optimizer-theme', theme);
+    } catch (e) {
+        console.error("Could not save theme to localStorage", e);
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
+  };
+
 
   useEffect(() => {
     try {
@@ -344,9 +372,13 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 font-sans flex flex-col items-center">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans flex flex-col items-center text-gray-900 dark:text-white transition-colors duration-300">
       <div className="w-full max-w-md mx-auto p-4 flex flex-col flex-grow">
-        <Header onOpenSubModal={() => setIsSubModalOpen(true)} />
+        <Header 
+          onOpenSubModal={() => setIsSubModalOpen(true)}
+          theme={theme}
+          toggleTheme={toggleTheme}
+        />
         <main className="flex-grow flex flex-col mt-6">
           {screenshotPreviews.length === 0 && !route && (
             <>
@@ -354,19 +386,19 @@ const App: React.FC = () => {
               
               <LiveConditions />
 
-              <div className="mt-4 p-4 bg-gray-800 border border-gray-700 rounded-lg">
+              <div className="mt-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
                 <div className="flex items-start">
-                  <InfoIcon className="w-6 h-6 text-cyan-400 mr-3 flex-shrink-0 mt-1" />
+                  <InfoIcon className="w-6 h-6 text-cyan-600 dark:text-cyan-400 mr-3 flex-shrink-0 mt-1" />
                   <div>
-                    <h3 className="font-semibold text-cyan-400">Screenshot Tips</h3>
-                    <ul className="list-disc list-inside text-gray-400 text-sm mt-1 space-y-1">
+                    <h3 className="font-semibold text-cyan-600 dark:text-cyan-400">Screenshot Tips</h3>
+                    <ul className="list-disc list-inside text-gray-500 dark:text-gray-400 text-sm mt-1 space-y-1">
                       <li>Upload multiple screenshots for your entire block.</li>
                       <li>For best results, use standard screenshots instead of one long, scrolling screenshot.</li>
                       <li>Ensure all stops are visible on the screen.</li>
                       <li>Text must be clear and not blurry.</li>
                       <li>Avoid any screen glare or obstructions.</li>
                     </ul>
-                     <div className="mt-3 pt-3 border-t border-dashed border-gray-700 flex items-start text-yellow-300/80">
+                     <div className="mt-3 pt-3 border-t border-dashed border-gray-300 dark:border-gray-700 flex items-start text-yellow-600 dark:text-yellow-300/80">
                         <WarningIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
                         <p className="text-xs">
                             For long routes (>20 stops), Google Maps links will be split into multiple parts.
@@ -379,7 +411,7 @@ const App: React.FC = () => {
               {hasSavedRoute && (
                 <button
                   onClick={handleLoadRoute}
-                  className="mt-4 w-full flex items-center justify-center bg-gray-600 hover:bg-gray-700 text-gray-200 font-bold py-3 px-4 rounded-lg transition duration-300"
+                  className="mt-4 w-full flex items-center justify-center bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-lg transition duration-300"
                 >
                   <LoadIcon className="w-5 h-5 mr-2" />
                   Load Saved Route
@@ -389,8 +421,8 @@ const App: React.FC = () => {
           )}
 
           {screenshotPreviews.length > 0 && !route && (
-             <div className="bg-gray-800 rounded-lg p-4 shadow-lg">
-                <h2 className="text-lg font-semibold text-cyan-400 mb-3 text-center">
+             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg">
+                <h2 className="text-lg font-semibold text-cyan-600 dark:text-cyan-400 mb-3 text-center">
                   {screenshotPreviews.length} Screenshot{screenshotPreviews.length > 1 ? 's' : ''} Selected
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-80 overflow-y-auto pr-2">
@@ -408,7 +440,7 @@ const App: React.FC = () => {
                 />
                 <button
                   onClick={handleAddMoreClick}
-                  className="mt-4 w-full flex items-center justify-center bg-gray-600 hover:bg-gray-700 text-gray-200 font-bold py-3 px-4 rounded-lg transition duration-300"
+                  className="mt-4 w-full flex items-center justify-center bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold py-3 px-4 rounded-lg transition duration-300"
                 >
                   <PlusCircleIcon className="w-5 h-5 mr-2" />
                   Add More Screenshots
@@ -419,7 +451,7 @@ const App: React.FC = () => {
           {appStatus === 'processing' && <Spinner />}
 
           {error && (
-            <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg relative mt-6" role="alert">
+            <div className="bg-red-100 border border-red-300 text-red-800 dark:bg-red-900/50 dark:border-red-700 dark:text-red-300 px-4 py-3 rounded-lg relative mt-6" role="alert">
               <strong className="font-bold">Error: </strong>
               <span className="block sm:inline">{error}</span>
             </div>
@@ -437,13 +469,11 @@ const App: React.FC = () => {
           )}
 
           <div className="mt-auto pt-6 flex flex-col space-y-3">
-              {/* FIX: Removed `appStatus !== 'processing'` from the condition to fix a TypeScript error.
-                  The button is now hidden based on `!route` and disabled when `appStatus === 'processing'`. */}
               {screenshotFiles.length > 0 && !route && (
                   <button
                     onClick={handleProcessRoute}
                     disabled={appStatus === 'processing'}
-                    className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-lg flex items-center justify-center disabled:bg-gray-600 disabled:cursor-not-allowed disabled:transform-none disabled:opacity-50"
+                    className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-lg flex items-center justify-center disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed disabled:transform-none disabled:opacity-50"
                   >
                     Process Route
                   </button>
@@ -455,8 +485,8 @@ const App: React.FC = () => {
                   disabled={saveStatus === 'saved'}
                   className={`w-full font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out shadow-lg flex items-center justify-center ${
                     saveStatus === 'saved' 
-                      ? 'bg-green-700 cursor-not-allowed' 
-                      : 'bg-green-600 hover:bg-green-700 transform hover:scale-105'
+                      ? 'bg-green-600 dark:bg-green-700 cursor-not-allowed' 
+                      : 'bg-green-500 hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700 transform hover:scale-105'
                   }`}
                 >
                   {saveStatus === 'saved' ? (
@@ -476,7 +506,7 @@ const App: React.FC = () => {
               {(screenshotFiles.length > 0 || route) && (
                 <button
                   onClick={handleReset}
-                  className="w-full bg-gray-600 hover:bg-gray-700 text-gray-200 font-bold py-3 px-4 rounded-lg transition duration-300"
+                  className="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 dark:bg-gray-600 dark:hover:bg-gray-700 dark:text-gray-200 font-bold py-3 px-4 rounded-lg transition duration-300"
                 >
                   Start Over
                 </button>

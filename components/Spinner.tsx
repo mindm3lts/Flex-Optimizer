@@ -44,20 +44,20 @@ export const Spinner: React.FC = () => {
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path d="M1 6v14l7-4 8 4 7-4V2l-7 4-8-4-7 4z" className="text-gray-700" />
-        <path d="M8 2v14" className="text-gray-700" />
-        <path d="M16 6v14" className="text-gray-700" />
+        <path d="M1 6v14l7-4 8 4 7-4V2l-7 4-8-4-7 4z" className="text-gray-300 dark:text-gray-700" />
+        <path d="M8 2v14" className="text-gray-300 dark:text-gray-700" />
+        <path d="M16 6v14" className="text-gray-300 dark:text-gray-700" />
         <path
           d="M5.5 5C4 7, 8 10, 10 12s4 2, 6 2c2.5 0, 4-2.5, 2.5-4.5"
-          className="route-line text-cyan-500"
+          className="route-line text-cyan-600 dark:text-cyan-500"
           strokeWidth="2"
         />
          <g className="map-pin">
-            <path d="M18.5 10c0 4.142-6.5 10.25-6.5 10.25S5.5 14.142 5.5 10a6.5 6.5 0 1113 0z" fill="#06b6d4" stroke="white" strokeWidth="1"/>
-            <circle cx="12" cy="10" r="2" fill="white" strokeWidth="0"/>
+            <path d="M18.5 10c0 4.142-6.5 10.25-6.5 10.25S5.5 14.142 5.5 10a6.5 6.5 0 1113 0z" className="fill-cyan-600 dark:fill-cyan-500 stroke-gray-100 dark:stroke-white" strokeWidth="1"/>
+            <circle cx="12" cy="10" r="2" className="fill-gray-100 dark:fill-white" strokeWidth="0"/>
         </g>
       </svg>
-      <p className="mt-4 text-cyan-300 font-semibold tracking-wider">ANALYZING SCREENSHOTS...</p>
+      <p className="mt-4 text-cyan-600 dark:text-cyan-300 font-semibold tracking-wider">ANALYZING SCREENSHOTS...</p>
     </div>
   );
 };

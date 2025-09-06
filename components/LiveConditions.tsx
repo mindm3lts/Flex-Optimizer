@@ -50,16 +50,16 @@ export const LiveConditions: React.FC = () => {
     const renderContent = () => {
         if (isLoading) {
             return (
-                 <div className="flex items-center text-gray-400">
-                    <div className="w-5 h-5 bg-gray-600 rounded-full animate-pulse mr-2"></div>
-                    <div className="h-4 w-32 bg-gray-600 rounded animate-pulse"></div>
+                 <div className="flex items-center text-gray-500 dark:text-gray-400">
+                    <div className="w-5 h-5 bg-gray-300 dark:bg-gray-600 rounded-full animate-pulse mr-2"></div>
+                    <div className="h-4 w-32 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
                  </div>
             );
         }
 
         if (error) {
             return (
-                <div className="flex items-center text-yellow-400/80">
+                <div className="flex items-center text-yellow-600 dark:text-yellow-400/80">
                     <WarningIcon className="w-5 h-5 mr-2 flex-shrink-0" />
                     <p className="text-sm">{error}</p>
                 </div>
@@ -68,10 +68,10 @@ export const LiveConditions: React.FC = () => {
 
         if (weather) {
             return (
-                 <div className="flex items-center text-gray-300">
-                    <ThermometerIcon className="w-5 h-5 mr-2 text-cyan-400" />
+                 <div className="flex items-center text-gray-800 dark:text-gray-300">
+                    <ThermometerIcon className="w-5 h-5 mr-2 text-cyan-500 dark:text-cyan-400" />
                     <p className="font-semibold">{weather.temperature}</p>
-                    <span className="mx-2 text-gray-600">|</span>
+                    <span className="mx-2 text-gray-300 dark:text-gray-600">|</span>
                     <p>{weather.condition}</p>
                 </div>
             );
@@ -81,7 +81,7 @@ export const LiveConditions: React.FC = () => {
     };
 
     return (
-        <div className="mt-6 p-3 bg-gray-800/50 border border-gray-700/50 rounded-lg flex justify-center">
+        <div className="mt-6 p-3 bg-gray-100/50 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/50 rounded-lg flex justify-center">
             {renderContent()}
         </div>
     );
