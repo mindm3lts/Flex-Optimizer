@@ -15,10 +15,10 @@ const getProvider = (provider: string) => {
 
 const validateSettings = (settings: AiSettings) => {
     if (!settings.apiKey) {
-        throw new Error("API key is not configured. Please configure it in the settings.");
+        throw new Error("API key is missing. Please add your key in the settings menu (⚙️).");
     }
      if (!settings.model) {
-        throw new Error("AI Model is not configured. Please configure it in the settings.");
+        throw new Error("AI Model is not configured. Please add the model name in the settings menu (⚙️).");
     }
 }
 
