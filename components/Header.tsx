@@ -4,7 +4,6 @@ import { RouteIcon, SunIcon, MoonIcon, SettingsIcon } from './icons';
 interface HeaderProps {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
-  onOpenSettings: () => void;
 }
 
 const LiveClock: React.FC = () => {
@@ -19,7 +18,7 @@ const LiveClock: React.FC = () => {
     return <div className="text-sm font-mono bg-gray-100 dark:bg-gray-900/50 px-2 py-1 rounded-md">{formattedTime}</div>;
 };
 
-export const Header: React.FC<HeaderProps> = ({ theme, toggleTheme, onOpenSettings }) => {
+export const Header: React.FC<HeaderProps> = ({ theme, toggleTheme }) => {
     return (
         <header className="flex items-center justify-between">
           <div className="flex items-center">
@@ -28,13 +27,6 @@ export const Header: React.FC<HeaderProps> = ({ theme, toggleTheme, onOpenSettin
           </div>
           <div className="flex items-center space-x-2">
             <LiveClock />
-            <button
-                onClick={onOpenSettings}
-                className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                aria-label="Open settings"
-            >
-                <SettingsIcon className="w-6 h-6 text-gray-700 dark:text-gray-300" />
-            </button>
             <button
                 onClick={toggleTheme}
                 className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"

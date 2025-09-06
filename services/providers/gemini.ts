@@ -1,6 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { RouteStop, RouteSummary, TrafficInfo, WeatherInfo, Geolocation, AiSettings } from "../../types";
 
+// Initialize the Google GenAI client once using the environment variable.
+// The API key's presence is validated in the aiService layer before any provider functions are called.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -14,39 +17,39 @@ const fileToBase64 = (file: File): Promise<string> =>
     reader.onerror = (error) => reject(error);
   });
 
-const getAiClient = (apiKey: string) => {
-    return new GoogleGenAI({ apiKey });
-}
-
 const handleGeminiError = (error: unknown, context: string): Error => {
     console.error(`Gemini Error (${context}):`, error);
 
     if (error instanceof SyntaxError) {
-        return new Error(`The AI returned an invalid or incomplete response while ${context}. The screenshot might be blurry or unreadable.`);
+        return new Error(`The AI returned an invalid response while ${context}. The screenshot might be blurry or the AI model produced malformed JSON.`);
     }
 
-    if (error instanceof Error) {
-        const message = error.message.toLowerCase();
-        if (message.includes('api key not valid')) {
-            return new Error('Your API key is invalid or expired. Please check it in the settings.');
-        }
-        if (message.includes('permission denied')) {
-            return new Error('The API key is missing permissions. Please check your Google Cloud project settings.');
-        }
-        if (message.includes('quota')) {
-            return new Error('You have exceeded your API quota for the day. Please check your usage limits or try again later.');
-        }
-        if (message.includes('fetch failed') || message.includes('network request failed') || message.includes('dns')) {
-            return new Error('Could not connect to the AI service. Please check your internet connection.');
-        }
+    let message = `An unexpected error occurred while ${context}. The AI service may be temporarily unavailable.`;
+    let errorDetails = '';
+
+    if (error && typeof error === 'object' && 'message' in error) {
+        errorDetails = String(error.message).toLowerCase();
+    } else if (error instanceof Error) {
+        errorDetails = error.message.toLowerCase();
     }
     
-    return new Error(`An unexpected error occurred while ${context}. The AI service may be temporarily unavailable.`);
+    if (errorDetails.includes('api key not valid')) {
+        message = 'Your API key is invalid or expired. Please ensure the API_KEY environment variable is set correctly.';
+    } else if (errorDetails.includes('permission denied')) {
+        message = 'The API key is missing permissions. Please check your Google Cloud project settings.';
+    } else if (errorDetails.includes('quota') || errorDetails.includes('resource_exhausted')) {
+        message = 'You have exceeded your API quota for the day. Please check your usage limits or try again later.';
+    } else if (errorDetails.includes('fetch failed') || errorDetails.includes('network') || errorDetails.includes('dns')) {
+        message = 'Could not connect to the AI service. Please check your internet connection.';
+    } else if (errorDetails.includes('candidate was blocked due to safety')) {
+        message = 'The request was blocked due to safety settings. Try a different request.';
+    }
+
+    return new Error(message);
 };
 
 
 export const processRouteScreenshot = async (file: File, settings: AiSettings): Promise<{ stops: RouteStop[], routeBlockCode?: string }> => {
-  const ai = getAiClient(settings.apiKey);
   const base64Image = await fileToBase64(file);
 
   try {
@@ -126,7 +129,6 @@ Output ONLY a valid JSON object matching the provided schema.`,
 };
 
 export const optimizeRouteOrder = async (stops: RouteStop[], startLocation: Geolocation | undefined, avoidLeftTurns: boolean | undefined, settings: AiSettings): Promise<RouteStop[]> => {
-  const ai = getAiClient(settings.apiKey);
   const prompt = `
     Optimize the following list of delivery stops for an Amazon Flex driver to find the most efficient route that minimizes travel time and distance.
     ${startLocation ? `The route must start from the current location: latitude ${startLocation.lat}, longitude ${startLocation.lon}.` : ''}
@@ -181,7 +183,6 @@ export const optimizeRouteOrder = async (stops: RouteStop[], startLocation: Geol
 };
 
 export const getRouteSummary = async (stops: RouteStop[], settings: AiSettings): Promise<RouteSummary> => {
-    const ai = getAiClient(settings.apiKey);
     if (stops.length === 0) {
         return { totalStops: 0, totalDistance: "0 miles", totalTime: "0 minutes" };
     }
@@ -221,7 +222,6 @@ export const getRouteSummary = async (stops: RouteStop[], settings: AiSettings):
 };
 
 export const getLiveTraffic = async (stops: RouteStop[], settings: AiSettings): Promise<TrafficInfo> => {
-    const ai = getAiClient(settings.apiKey);
     if (stops.length === 0) {
         return { status: "Unknown", summary: "No route to analyze.", lastUpdated: new Date().toLocaleTimeString() };
     }
@@ -248,13 +248,12 @@ export const getLiveTraffic = async (stops: RouteStop[], settings: AiSettings): 
         const data = JSON.parse(response.text);
         return { ...data, lastUpdated: new Date().toLocaleTimeString() };
     } catch (e) {
-        console.error("Failed to parse traffic data", e);
-        return { status: "Unknown", summary: "Could not retrieve traffic data.", lastUpdated: new Date().toLocaleTimeString() };
+        const err = handleGeminiError(e, "fetching live traffic");
+        return { status: "Unknown", summary: err.message, lastUpdated: new Date().toLocaleTimeString() };
     }
 };
 
 export const getCurrentWeather = async (location: Geolocation, settings: AiSettings): Promise<WeatherInfo> => {
-  const ai = getAiClient(settings.apiKey);
   const prompt = `What is the current weather at latitude ${location.lat} and longitude ${location.lon}? Provide the temperature (in Fahrenheit, e.g., "72°F"), a brief condition description (e.g., "Clear", "Partly Cloudy"), and an icon identifier. The icon identifier must be one of the following strings: "SUNNY", "CLOUDY", "RAINY", "SNOWY", "THUNDERSTORM", "WINDY", "PARTLY_CLOUDY", "UNKNOWN". Respond in JSON format with keys "temperature", "condition", and "icon".`;
   
   try {

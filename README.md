@@ -7,7 +7,7 @@ _Caption: The main interface, ready for you to upload your route screenshots._
 
 ## ✨ Features
 
--   **⚙️ Configurable AI:** Choose your AI provider. Support for Google Gemini is built-in, and the architecture is ready for more providers.
+-   **⚙️ AI-Powered:** Uses Google Gemini for fast and accurate route processing and optimization.
 -   **📄 Screenshot to Route:** Upload one or more screenshots of your Amazon Flex itinerary.
 -   **🤖 AI-Powered Optimization:** Uses AI to intelligently parse addresses and calculate the most efficient delivery order.
 -   **📍 Start From Anywhere:** Optionally use your current GPS location as the starting point for the route.
@@ -27,18 +27,9 @@ _Caption: An example of a processed and optimized route, ready for navigation._
 
 ## 🚀 Getting Started
 
-This application requires an API key from an AI provider to function. Setup is simple and requires no code changes.
+This application requires a pre-configured environment with a valid Google Gemini API key to function.
 
-### Step 1: Get an API Key
-
-First, you need an API key. Google Gemini is supported out of the box.
-
-1.  Go to [Google AI Studio](https://aistudio.google.com/).
-2.  Sign in with your Google account.
-3.  Click on **"Get API key"** and then **"Create API key in new project"**.
-4.  Copy the generated API key. Keep it safe.
-
-### Step 2: Local Setup (Desktop)
+### Local Setup (Desktop)
 
 1.  **Clone the repository:**
     ```bash
@@ -59,16 +50,9 @@ First, you need an API key. Google Gemini is supported out of the box.
     npm install -g serve
     serve .
     ```
-    Now, open your browser and navigate to the local address provided (e.g., `http://localhost:8000` or `http://localhost:3000`).
+    Now, open your browser and navigate to the local address provided (e.g., `http://localhost:8000` or `http://localhost:3000`). The application will be ready to use, provided the API key is available in the execution environment.
 
-3.  **Configure the App:**
-    -   Once the app loads, click the **Settings icon (⚙️)** in the header.
-    -   Select your AI Provider (e.g., "Google Gemini").
-    -   Paste your API key into the "API Key" field.
-    -   The model name (`gemini-2.5-flash`) is pre-filled for Gemini.
-    -   Click "Save Settings". The app is now ready to use!
-
-### Step 3: Termux Setup (Android)
+### Termux Setup (Android)
 
 Run the optimizer directly on your Android device using Termux.
 
@@ -92,13 +76,12 @@ Run the optimizer directly on your Android device using Termux.
     ```
     `serve` will start a web server and give you a local URL, typically `http://localhost:3000`.
 
-4.  **Configure and Use the App:**
+4.  **Use the App:**
     -   Open a web browser on your phone (like Chrome or Firefox) and navigate to `http://localhost:3000`.
-    -   Follow **Step 3: Configure the App** from the desktop instructions above to enter your API key in the settings menu.
     -   You can now use the app directly on your device to upload screenshots and optimize routes.
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! If you have ideas for new features (like adding a new AI provider), bug fixes, or improvements, please open an issue or submit a pull request.
+Contributions are welcome! If you have ideas for new features, bug fixes, or improvements, please open an issue or submit a pull request.

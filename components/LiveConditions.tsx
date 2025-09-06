@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getCurrentWeather } from '../services/aiService';
-import type { WeatherInfo, WeatherIconType, AiSettings } from '../types';
+import type { WeatherInfo, WeatherIconType } from '../types';
 import { ThermometerIcon, WarningIcon, SunIcon, CloudIcon, PartlyCloudyIcon, RainIcon, SnowIcon, ThunderstormIcon, WindyIcon } from './icons';
 
 const WeatherIcon: React.FC<{ icon: WeatherIconType }> = ({ icon }) => {
@@ -31,26 +31,10 @@ export const LiveConditions: React.FC = () => {
     const [weather, setWeather] = useState<WeatherInfo | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [aiSettings, setAiSettings] = useState<AiSettings | null>(null);
 
     useEffect(() => {
         const fetchWeather = () => {
-             try {
-                const savedSettings = localStorage.getItem('flex-optimizer-aisettings');
-                if (savedSettings) {
-                    const parsedSettings = JSON.parse(savedSettings) as AiSettings;
-                    if (!parsedSettings.apiKey) {
-                        setError("API key not set in settings.");
-                        setIsLoading(false);
-                        return;
-                    }
-                    setAiSettings(parsedSettings);
-                } else {
-                    setError("AI settings not configured.");
-                    setIsLoading(false);
-                    return;
-                }
-
+            try {
                 const cachedDataJSON = localStorage.getItem('flex-optimizer-weather-cache');
                 if (cachedDataJSON) {
                     const { data, timestamp } = JSON.parse(cachedDataJSON);
@@ -61,7 +45,7 @@ export const LiveConditions: React.FC = () => {
                     }
                 }
             } catch (e) {
-                console.error("Could not read from cache or settings", e);
+                console.error("Could not read from weather cache", e);
             }
 
             if (!navigator.geolocation) {
@@ -72,15 +56,9 @@ export const LiveConditions: React.FC = () => {
 
             navigator.geolocation.getCurrentPosition(
                 async (position) => {
-                    if (!aiSettings) {
-                        // This case is handled above, but as a safeguard.
-                        setError("AI settings are missing.");
-                        setIsLoading(false);
-                        return;
-                    }
                     try {
                         const { latitude, longitude } = position.coords;
-                        const weatherData = await getCurrentWeather({ lat: latitude, lon: longitude }, aiSettings);
+                        const weatherData = await getCurrentWeather({ lat: latitude, lon: longitude });
                         setWeather(weatherData);
                         setError(null);
                         
@@ -92,11 +70,7 @@ export const LiveConditions: React.FC = () => {
                         }
                     } catch (err) {
                         console.error("Failed to fetch weather data:", err);
-                        if (err instanceof Error && err.message.includes('API key')) {
-                           setError("Invalid API key for weather service.");
-                        } else {
-                           setError("Could not retrieve weather data.");
-                        }
+                        setError(err instanceof Error ? err.message : "Could not retrieve weather data.");
                     } finally {
                         setIsLoading(false);
                     }
@@ -116,7 +90,7 @@ export const LiveConditions: React.FC = () => {
             );
         };
         fetchWeather();
-    }, [aiSettings]); // Re-run if settings change (though they won't in this component's lifecycle)
+    }, []);
 
     const renderContent = () => {
         if (isLoading) {
