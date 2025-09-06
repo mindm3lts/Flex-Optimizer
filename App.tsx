@@ -1,21 +1,27 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { FileUpload } from './components/FileUpload';
 import { RouteDisplay } from './components/RouteDisplay';
 import { Spinner } from './components/Spinner';
-import { processRouteScreenshot, optimizeRouteOrder } from './services/geminiService';
-import type { RouteStop } from './types';
-import { InfoIcon, SaveIcon, LoadIcon, AndroidIcon, CheckIcon } from './components/icons';
+import { processRouteScreenshot, optimizeRouteOrder, getRouteSummary, getLiveTraffic } from './services/geminiService';
+import type { RouteStop, RouteSummary, TrafficInfo } from './types';
+import { InfoIcon, SaveIcon, LoadIcon, AndroidIcon, CheckIcon, WarningIcon, PlusCircleIcon } from './components/icons';
 
 const App: React.FC = () => {
   const [screenshotFiles, setScreenshotFiles] = useState<File[]>([]);
   const [screenshotPreviews, setScreenshotPreviews] = useState<string[]>([]);
   const [route, setRoute] = useState<RouteStop[] | null>(null);
+  const [summary, setSummary] = useState<RouteSummary | null>(null);
+  const [trafficInfo, setTrafficInfo] = useState<TrafficInfo | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
+  const [isSummaryLoading, setIsSummaryLoading] = useState<boolean>(false);
+  const [isTrafficLoading, setIsTrafficLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSavedRoute, setHasSavedRoute] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+  
+  const addMoreInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const savedRoute = localStorage.getItem('flex-optimizer-saved-route');
@@ -29,16 +35,100 @@ const App: React.FC = () => {
     };
   }, [screenshotPreviews]);
 
+  // Effect to fetch route summary whenever the route changes
+  useEffect(() => {
+    const fetchSummary = async () => {
+      // Filter out the location stop before sending to summary service
+      const deliveryStops = route?.filter(s => s.type !== 'location') ?? [];
+      if (deliveryStops.length > 0) {
+        setIsSummaryLoading(true);
+        // Preserve existing block code while fetching new summary
+        const existingBlockCode = summary?.routeBlockCode;
+        try {
+          const summaryData = await getRouteSummary(deliveryStops);
+          setSummary({ ...summaryData, routeBlockCode: existingBlockCode });
+        } catch (err) {
+          console.error("Failed to fetch route summary:", err);
+          setSummary({ totalStops: deliveryStops.length, totalDistance: "N/A", totalTime: "N/A", routeBlockCode: existingBlockCode });
+        } finally {
+          setIsSummaryLoading(false);
+        }
+      } else if (route) { // Case where only location stop exists
+        setSummary({ totalStops: 0, totalDistance: "N/A", totalTime: "N/A", routeBlockCode: summary?.routeBlockCode });
+      }
+      else {
+        setSummary(null);
+      }
+    };
 
-  const handleFileChange = (files: File[]) => {
-    if (files.length > 0) {
-      // Clean up old previews before creating new ones
-      screenshotPreviews.forEach(URL.revokeObjectURL);
+    fetchSummary();
+  }, [route]);
 
-      setScreenshotFiles(files);
-      setScreenshotPreviews(files.map(file => URL.createObjectURL(file)));
-      setRoute(null);
-      setError(null);
+  // Effect to fetch and poll for live traffic data
+  useEffect(() => {
+    const deliveryStops = route?.filter(s => s.type !== 'location') ?? [];
+    if (deliveryStops.length === 0) {
+        setTrafficInfo(null);
+        return;
+    }
+
+    let intervalId: number | undefined;
+
+    const fetchTraffic = async () => {
+      setIsTrafficLoading(true);
+      try {
+        const trafficData = await getLiveTraffic(deliveryStops);
+        setTrafficInfo(trafficData);
+      } catch (err) {
+        console.error("Failed to fetch live traffic:", err);
+        setTrafficInfo({
+            status: 'Unknown',
+            summary: 'Could not fetch live traffic data.',
+            lastUpdated: new Date().toLocaleTimeString()
+        });
+      } finally {
+        setIsTrafficLoading(false);
+      }
+    };
+    
+    fetchTraffic();
+    intervalId = window.setInterval(fetchTraffic, 60000); 
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [route]);
+
+
+  const handleFileChange = (files: File[], mode: 'replace' | 'append' = 'replace') => {
+    if (files.length === 0) return;
+
+    if (mode === 'replace') {
+        screenshotPreviews.forEach(URL.revokeObjectURL); // clean up old ones
+        setScreenshotFiles(files);
+        setScreenshotPreviews(files.map(file => URL.createObjectURL(file)));
+    } else { // append
+        setScreenshotFiles(prev => [...prev, ...files]);
+        setScreenshotPreviews(prev => [...prev, ...files.map(file => URL.createObjectURL(file))]);
+    }
+
+    setRoute(null);
+    setError(null);
+  };
+  
+  const handleAddMoreClick = () => {
+    addMoreInputRef.current?.click();
+  };
+
+  const handleAddMoreFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      handleFileChange(Array.from(files), 'append');
+    }
+    if (addMoreInputRef.current) {
+      addMoreInputRef.current.value = "";
     }
   };
 
@@ -60,29 +150,29 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setRoute(null);
+    setSummary(null);
 
     try {
-      // Process all screenshots in parallel
       const allResults = await Promise.all(
         screenshotFiles.map(file => processRouteScreenshot(file))
       );
 
-      // Flatten the array of arrays and deduplicate based on originalStopNumber
-      const allStops = allResults.flat();
-      const uniqueStopsMap = new Map<number, RouteStop>();
+      const allStops = allResults.flatMap(res => res.stops);
+      const routeBlockCode = allResults.find(res => res.routeBlockCode)?.routeBlockCode;
 
+      const uniqueStopsMap = new Map<number, RouteStop>();
       for (const stop of allStops) {
-        // The map ensures that we only keep the first occurrence of each stop number
         if (!uniqueStopsMap.has(stop.originalStopNumber)) {
           uniqueStopsMap.set(stop.originalStopNumber, stop);
         }
       }
-
-      const addresses = Array.from(uniqueStopsMap.values());
+      
+      const addresses = Array.from(uniqueStopsMap.values()).map(stop => ({...stop, type: 'delivery' as const}));
       
       if (addresses && addresses.length > 0) {
         const sortedAddresses = [...addresses].sort((a, b) => a.originalStopNumber - b.originalStopNumber);
         setRoute(sortedAddresses);
+        setSummary({ totalStops: sortedAddresses.length, totalDistance: "...", totalTime: "...", routeBlockCode });
       } else {
         setError('Could not extract any addresses from the images. Please try other screenshots.');
       }
@@ -100,7 +190,7 @@ const App: React.FC = () => {
         localStorage.setItem('flex-optimizer-saved-route', JSON.stringify(route));
         setHasSavedRoute(true);
         setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 2000); // Reset after 2 seconds
+        setTimeout(() => setSaveStatus('idle'), 2000);
       } catch (e) {
         console.error("Failed to save route:", e);
         setError("Could not save the route to local storage. It might be full.");
@@ -131,19 +221,65 @@ const App: React.FC = () => {
     }
   }, []);
   
-  const handleAiOptimize = useCallback(async () => {
-    if (!route || route.length < 2) return;
-    
+  const handleAiOptimize = useCallback(async (useLocation: boolean) => {
+    const deliveryStops = route?.filter(s => s.type !== 'location') ?? [];
+    if (deliveryStops.length < 1) return;
+
     setIsOptimizing(true);
     setError(null);
-    try {
-      const optimized = await optimizeRouteOrder(route);
-      setRoute(optimized);
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred during optimization.');
-    } finally {
-      setIsOptimizing(false);
+
+    const performOptimization = async (location?: { lat: number, lon: number }) => {
+      try {
+        const optimized = await optimizeRouteOrder(deliveryStops, location);
+        if (location) {
+          const currentLocationStop: RouteStop = {
+            originalStopNumber: 0,
+            street: 'Your Current Location',
+            city: 'Start of route',
+            state: '',
+            zip: '',
+            label: '',
+            packageType: 'Unknown',
+            tba: '',
+            packageLabel: '',
+            type: 'location',
+          };
+          setRoute([currentLocationStop, ...optimized]);
+        } else {
+          setRoute(optimized);
+        }
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : 'An unknown error occurred during optimization.');
+      } finally {
+        setIsOptimizing(false);
+      }
+    };
+
+    if (useLocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          performOptimization({ lat: latitude, lon: longitude });
+        },
+        (geoError) => {
+          console.error("Geolocation error:", geoError);
+          let errorMessage = "Could not get your location. ";
+          switch (geoError.code) {
+            case geoError.PERMISSION_DENIED:
+              errorMessage += "Please grant location permission and try again.";
+              break;
+            default:
+              errorMessage += "Please check your device's location settings.";
+              break;
+          }
+          setError(errorMessage);
+          setIsOptimizing(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    } else {
+      performOptimization();
     }
   }, [route]);
 
@@ -175,6 +311,12 @@ const App: React.FC = () => {
                       <li>Text must be clear and not blurry.</li>
                       <li>Avoid any screen glare or obstructions.</li>
                     </ul>
+                     <div className="mt-3 pt-3 border-t border-dashed border-gray-700 flex items-start text-yellow-300/80">
+                        <WarningIcon className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs">
+                            For long routes (>20 stops), Google Maps links will be split into multiple parts.
+                        </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -220,6 +362,21 @@ const App: React.FC = () => {
                     <img key={index} src={previewUrl} alt={`Screenshot preview ${index + 1}`} className="rounded-md w-full h-auto object-cover" />
                   ))}
                 </div>
+                 <input
+                  type="file"
+                  ref={addMoreInputRef}
+                  onChange={handleAddMoreFiles}
+                  multiple
+                  className="hidden"
+                  accept="image/png, image/jpeg, image/webp"
+                />
+                <button
+                  onClick={handleAddMoreClick}
+                  className="mt-4 w-full flex items-center justify-center bg-gray-600 hover:bg-gray-700 text-gray-200 font-bold py-3 px-4 rounded-lg transition duration-300"
+                >
+                  <PlusCircleIcon className="w-5 h-5 mr-2" />
+                  Add More Screenshots
+                </button>
               </div>
           )}
 
@@ -235,6 +392,10 @@ const App: React.FC = () => {
           {route && !isLoading && (
             <RouteDisplay
               route={route}
+              summary={summary}
+              trafficInfo={trafficInfo}
+              isSummaryLoading={isSummaryLoading}
+              isTrafficLoading={isTrafficLoading}
               onRouteUpdate={setRoute}
               onAiOptimize={handleAiOptimize}
               isOptimizing={isOptimizing}

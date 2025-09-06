@@ -1,11 +1,15 @@
 import React, { useMemo, useState, useRef } from 'react';
-import type { RouteStop, PackageType } from '../types';
-import { GoogleMapsIcon, AppleMapsIcon, DragHandleIcon, TrashIcon, BoxIcon, EnvelopeIcon, PackageIcon, SortIcon, WarningIcon, SparklesIcon } from './icons';
+import type { RouteStop, PackageType, RouteSummary, TrafficInfo, TrafficStatus } from '../types';
+import { GoogleMapsIcon, AppleMapsIcon, DragHandleIcon, TrashIcon, BoxIcon, EnvelopeIcon, PackageIcon, SortIcon, WarningIcon, SparklesIcon, LocationPinIcon, ClockIcon, RoadIcon, HashtagIcon, TrafficIcon, CloseIcon, LinkIcon, MyLocationIcon } from './icons';
 
 interface RouteDisplayProps {
   route: RouteStop[];
+  summary: RouteSummary | null;
+  trafficInfo: TrafficInfo | null;
+  isSummaryLoading: boolean;
+  isTrafficLoading: boolean;
   onRouteUpdate: (newRoute: RouteStop[]) => void;
-  onAiOptimize: () => Promise<void>;
+  onAiOptimize: (useLocation: boolean) => Promise<void>;
   isOptimizing: boolean;
 }
 
@@ -25,44 +29,109 @@ const getPackageIcon = (packageType: PackageType) => {
     }
 }
 
-const generateMapsUrl = (platform: 'google' | 'apple', stops: RouteStop[]): string => {
-  if (stops.length === 0) return '#';
-
-  const encodedAddresses = stops.map(stop =>
-    encodeURIComponent(`${stop.street}, ${stop.city}, ${stop.state} ${stop.zip}`)
-  );
-
-  if (stops.length === 1) {
-    return platform === 'google'
-      ? `https://www.google.com/maps/search/?api=1&query=${encodedAddresses[0]}`
-      : `https://maps.apple.com/?q=${encodedAddresses[0]}`;
-  }
-
-  const origin = encodedAddresses[0];
-  const destination = encodedAddresses[encodedAddresses.length - 1];
-  const waypoints = encodedAddresses.slice(1, -1);
-  
-  if (platform === 'google') {
-    const waypointsString = waypoints.join('|');
-    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypointsString}`;
-  } else { // apple
-    const waypointsString = waypoints.join('+to:');
-    const daddr = waypoints.length > 0 ? `${waypointsString}+to:${destination}` : destination;
-    return `https://maps.apple.com/?saddr=${origin}&daddr=${daddr}`;
+const getTrafficColor = (status: TrafficStatus) => {
+  switch (status) {
+    case 'Light': return 'text-green-400';
+    case 'Moderate': return 'text-yellow-400';
+    case 'Heavy': return 'text-red-400';
+    default: return 'text-gray-500';
   }
 };
 
-export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, onRouteUpdate, onAiOptimize, isOptimizing }) => {
-  const googleMapsUrl = useMemo(() => generateMapsUrl('google', route), [route]);
-  const appleMapsUrl = useMemo(() => generateMapsUrl('apple', route), [route]);
+const GOOGLE_MAPS_WAYPOINT_LIMIT = 20;
+
+interface GoogleMapsLink {
+  label: string;
+  url: string;
+}
+
+const generateGoogleMapsLinks = (stops: RouteStop[]): GoogleMapsLink[] => {
+  const deliveryStops = stops.filter(s => s.type !== 'location');
+  if (deliveryStops.length === 0) return [];
+
+  if (deliveryStops.length <= GOOGLE_MAPS_WAYPOINT_LIMIT) {
+    const encodedAddresses = deliveryStops.map(stop => encodeURIComponent(`${stop.street}, ${stop.city}, ${stop.state} ${stop.zip}`));
+    if (deliveryStops.length === 1) {
+      return [{ label: 'Open in Google Maps', url: `https://www.google.com/maps/search/?api=1&query=${encodedAddresses[0]}` }];
+    }
+    const origin = encodedAddresses[0];
+    const destination = encodedAddresses[encodedAddresses.length - 1];
+    const waypoints = encodedAddresses.slice(1, -1).join('|');
+    return [{ label: 'Open in Google Maps', url: `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}` }];
+  }
+  
+  const links: GoogleMapsLink[] = [];
+  for (let i = 0; i < deliveryStops.length; i += GOOGLE_MAPS_WAYPOINT_LIMIT) {
+    const chunk = deliveryStops.slice(i, i + GOOGLE_MAPS_WAYPOINT_LIMIT);
+    const encodedAddresses = chunk.map(stop => encodeURIComponent(`${stop.street}, ${stop.city}, ${stop.state} ${stop.zip}`));
+    
+    const origin = encodedAddresses[0];
+    const destination = encodedAddresses[encodedAddresses.length - 1];
+    const waypoints = encodedAddresses.slice(1, -1).join('|');
+    
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}`;
+    const label = `Open Route (Stops ${i + 1} - ${i + chunk.length})`;
+    links.push({ label, url });
+  }
+  return links;
+};
+
+const generateAppleMapsUrl = (stops: RouteStop[]): string => {
+  const firstStop = stops.find(s => s.type !== 'location');
+  if (!firstStop) return '#';
+  const firstStopEncoded = encodeURIComponent(`${firstStop.street}, ${firstStop.city}, ${firstStop.state} ${firstStop.zip}`);
+  return `https://maps.apple.com/?daddr=${firstStopEncoded}`;
+};
+
+
+const SummaryItem: React.FC<{ icon: React.ReactNode; label: string; value: string | number; isLoading: boolean }> = ({ icon, label, value, isLoading }) => (
+  <div className="flex flex-col items-center justify-center p-2 bg-gray-700/50 rounded-lg text-center h-full">
+    {isLoading ? (
+      <>
+        <div className="w-6 h-6 bg-gray-600 rounded-full animate-pulse"></div>
+        <div className="h-4 w-16 bg-gray-600 rounded mt-2 animate-pulse"></div>
+        <div className="h-3 w-12 bg-gray-600 rounded mt-1 animate-pulse"></div>
+      </>
+    ) : (
+      <>
+        <div className="text-cyan-400">{icon}</div>
+        <span className="mt-1 text-lg font-bold text-white">{value}</span>
+        <span className="text-xs text-gray-400">{label}</span>
+      </>
+    )}
+  </div>
+);
+
+const LocationStopDisplay: React.FC<{ stop: RouteStop }> = ({ stop }) => (
+  <div className="relative flex items-start bg-blue-900/50 border border-blue-700 p-3 rounded-md">
+    <MyLocationIcon className="w-6 h-6 text-blue-400 mr-3 mt-1 flex-shrink-0" />
+    <div className="flex-grow">
+      <div className="flex justify-between items-center text-xs font-mono mb-1">
+        <span className="font-bold text-blue-300 text-sm">START: #{1}</span>
+      </div>
+      <p className="font-semibold text-gray-100">{stop.street}</p>
+      <p className="text-sm text-gray-400">{stop.city}</p>
+    </div>
+  </div>
+);
+
+export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, summary, trafficInfo, isSummaryLoading, isTrafficLoading, onRouteUpdate, onAiOptimize, isOptimizing }) => {
+  const googleMapsLinks = useMemo(() => generateGoogleMapsLinks(route), [route]);
+  const appleMapsUrl = useMemo(() => generateAppleMapsUrl(route), [route]);
 
   const draggedItemIndex = useRef<number | null>(null);
   const [draggedOverIndex, setDraggedOverIndex] = useState<number | null>(null);
   const [stopToDeleteIndex, setStopToDeleteIndex] = useState<number | null>(null);
+  const [isMapsModalOpen, setIsMapsModalOpen] = useState(false);
+  const [useLocation, setUseLocation] = useState(false);
+
+  const locationStop = useMemo(() => route.find(s => s.type === 'location'), [route]);
+  const deliveryStops = useMemo(() => route.filter(s => s.type !== 'location'), [route]);
 
   const handleFieldChange = (index: number, field: keyof RouteStop, value: string) => {
-    const newRoute = [...route];
-    (newRoute[index] as any)[field] = value;
+    const newDeliveryStops = [...deliveryStops];
+    (newDeliveryStops[index] as any)[field] = value;
+    const newRoute = locationStop ? [locationStop, ...newDeliveryStops] : newDeliveryStops;
     onRouteUpdate(newRoute);
   };
 
@@ -85,10 +154,10 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, onRouteUpdate
       setDraggedOverIndex(null);
       return;
     }
-
-    const newRoute = [...route];
-    const [removed] = newRoute.splice(draggedItemIndex.current, 1);
-    newRoute.splice(index, 0, removed);
+    const newDeliveryStops = [...deliveryStops];
+    const [removed] = newDeliveryStops.splice(draggedItemIndex.current, 1);
+    newDeliveryStops.splice(index, 0, removed);
+    const newRoute = locationStop ? [locationStop, ...newDeliveryStops] : newDeliveryStops;
     onRouteUpdate(newRoute);
     
     draggedItemIndex.current = null;
@@ -96,7 +165,7 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, onRouteUpdate
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault(); // Necessary to allow dropping
+    event.preventDefault();
   };
 
   const handleDeleteRequest = (index: number) => {
@@ -106,7 +175,8 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, onRouteUpdate
   const handleConfirmDelete = () => {
     if (stopToDeleteIndex === null) return;
     
-    const newRoute = route.filter((_, i) => i !== stopToDeleteIndex);
+    const newDeliveryStops = deliveryStops.filter((_, i) => i !== stopToDeleteIndex);
+    const newRoute = locationStop ? [locationStop, ...newDeliveryStops] : newDeliveryStops;
     onRouteUpdate(newRoute);
     setStopToDeleteIndex(null);
   };
@@ -116,32 +186,63 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, onRouteUpdate
   };
 
   const handleResetOrder = () => {
-    const sortedRoute = [...route].sort((a, b) => a.originalStopNumber - b.originalStopNumber);
-    onRouteUpdate(sortedRoute);
+    const sortedDeliveryStops = [...deliveryStops].sort((a, b) => a.originalStopNumber - b.originalStopNumber);
+    const newRoute = locationStop ? [locationStop, ...sortedDeliveryStops] : sortedDeliveryStops;
+    onRouteUpdate(newRoute);
+  };
+  
+  const handleGoogleMapsClick = () => {
+    if (googleMapsLinks.length === 1) {
+      window.open(googleMapsLinks[0].url, '_blank', 'noopener,noreferrer');
+    } else if (googleMapsLinks.length > 1) {
+      setIsMapsModalOpen(true);
+    }
   };
 
   return (
     <div className="mt-6 bg-gray-800 rounded-lg p-4 shadow-lg animate-fade-in flex flex-col flex-grow">
-      <div className="mb-4">
-          <h2 className="text-xl font-bold text-cyan-400 text-center">Optimize Your Route</h2>
-          <div className="flex items-center space-x-2 mt-3">
+      <div className="mb-4 bg-gray-900/50 rounded-lg p-3">
+          <h2 className="text-xl font-bold text-cyan-400 text-center mb-3">Optimize Your Route</h2>
+          
+          <div className="flex items-center justify-between bg-gray-800 p-2 rounded-md mb-3">
+              <label htmlFor="useLocationToggle" className="flex-grow text-sm font-medium text-gray-200">
+                Start from my location
+              </label>
+              <button
+                id="useLocationToggle"
+                role="switch"
+                aria-checked={useLocation}
+                onClick={() => setUseLocation(!useLocation)}
+                className={`${
+                  useLocation ? 'bg-blue-600' : 'bg-gray-600'
+                } relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500`}
+              >
+                <span
+                  className={`${
+                    useLocation ? 'translate-x-6' : 'translate-x-1'
+                  } inline-block w-4 h-4 transform bg-white rounded-full transition-transform`}
+                />
+              </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
              <button
-                onClick={onAiOptimize}
-                disabled={isOptimizing || route.length < 2}
-                className="flex-1 flex items-center justify-center px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-md transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed"
+                onClick={() => onAiOptimize(useLocation)}
+                disabled={isOptimizing}
+                className="col-span-2 flex items-center justify-center px-3 py-3 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-md transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed"
                 aria-label="Optimize route with AI"
               >
                 <SparklesIcon className={`w-5 h-5 mr-2 ${isOptimizing ? 'animate-pulse' : ''}`} />
-                {isOptimizing ? 'Optimizing...' : 'AI Optimize'}
+                {isOptimizing ? 'Optimizing...' : 'AI Optimize Route'}
               </button>
               <button
                 onClick={handleResetOrder}
                 disabled={isOptimizing}
-                className="flex items-center px-3 py-2 bg-gray-600 hover:bg-gray-700 text-gray-200 text-sm font-semibold rounded-md transition-colors disabled:opacity-50"
+                className="col-span-2 flex items-center justify-center px-3 py-2 bg-gray-600 hover:bg-gray-700 text-gray-200 text-sm font-semibold rounded-md transition-colors disabled:opacity-50"
                 aria-label="Reset to original order"
               >
                 <SortIcon className="w-5 h-5 mr-2" />
-                Reset Order
+                Reset to Original Order
               </button>
           </div>
       </div>
@@ -150,7 +251,9 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, onRouteUpdate
         className="space-y-3 overflow-y-auto pr-2 flex-grow"
         onDragOver={handleDragOver}
       >
-        {route.map((stop, index) => (
+        {locationStop && <LocationStopDisplay stop={locationStop} />}
+
+        {deliveryStops.map((stop, index) => (
           <div
             key={stop.originalStopNumber}
             draggable
@@ -164,7 +267,7 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, onRouteUpdate
             <div className="flex-grow">
                 <div className="flex justify-between items-center text-xs font-mono mb-2">
                     <span className="text-gray-400">Original: #{stop.originalStopNumber}</span>
-                    <span className="font-bold text-cyan-400 text-sm">New: #{index + 1}</span>
+                    <span className="font-bold text-cyan-400 text-sm">New: #{index + (locationStop ? 2 : 1)}</span>
                 </div>
               <p className="font-semibold text-gray-100">{stop.street}</p>
               <p className="text-sm text-gray-400">{`${stop.city}, ${stop.state} ${stop.zip}`}</p>
@@ -221,16 +324,69 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, onRouteUpdate
         ))}
       </div>
 
+      <div className="mt-6 pt-4 border-t border-gray-700">
+        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 text-center">Route Summary</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+             <SummaryItem
+                icon={<HashtagIcon className="w-6 h-6" />}
+                label="Block Code"
+                value={summary?.routeBlockCode ?? 'N/A'}
+                isLoading={isSummaryLoading && !summary?.routeBlockCode}
+            />
+            <SummaryItem
+                icon={<LocationPinIcon className="w-6 h-6" />}
+                label="Stops"
+                value={summary?.totalStops ?? 0}
+                isLoading={isSummaryLoading}
+            />
+            <SummaryItem
+                icon={<RoadIcon className="w-6 h-6" />}
+                label="Distance"
+                value={summary?.totalDistance ?? '...'}
+                isLoading={isSummaryLoading}
+            />
+            <SummaryItem
+                icon={<ClockIcon className="w-6 h-6" />}
+                label="Time"
+                value={summary?.totalTime ?? '...'}
+                isLoading={isSummaryLoading}
+            />
+        </div>
+      </div>
+      
+      <div className="mt-4 pt-4 border-t border-gray-700">
+        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2 text-center">Live Traffic</h3>
+          {isTrafficLoading && !trafficInfo ? (
+            <div className="p-3 bg-gray-700/50 rounded-lg animate-pulse h-20" />
+          ) : trafficInfo && (
+             <div className="p-3 bg-gray-700/50 rounded-lg">
+                <div className="flex items-start">
+                    <TrafficIcon className={`w-6 h-6 mr-3 flex-shrink-0 ${getTrafficColor(trafficInfo.status)}`} />
+                    <div className="flex-grow">
+                        <div className="flex justify-between items-center">
+                            <p className={`font-bold ${getTrafficColor(trafficInfo.status)}`}>
+                                {trafficInfo.status} Traffic
+                            </p>
+                            <p className="text-xs text-gray-500">
+                                As of {trafficInfo.lastUpdated}
+                            </p>
+                        </div>
+                        <p className="text-sm text-gray-300 mt-1">{trafficInfo.summary}</p>
+                    </div>
+                </div>
+            </div>
+          )}
+      </div>
+
+
       <div className="mt-6 space-y-3">
-        <a
-          href={googleMapsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={handleGoogleMapsClick}
           className="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-lg"
         >
           <GoogleMapsIcon className="w-6 h-6 mr-2" />
           Open in Google Maps
-        </a>
+        </button>
         <a
           href={appleMapsUrl}
           target="_blank"
@@ -238,24 +394,24 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, onRouteUpdate
           className="w-full flex items-center justify-center bg-gray-200 hover:bg-gray-300 text-black font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-lg"
         >
           <AppleMapsIcon className="w-6 h-6 mr-2" />
-          Open in Apple Maps
+          Navigate to First Stop (Apple Maps)
         </a>
       </div>
       
       {stopToDeleteIndex !== null && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog" aria-labelledby="modal-title">
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog" aria-labelledby="delete-modal-title">
           <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
              <div className="sm:flex sm:items-start">
                 <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-900/50 sm:mx-0 sm:h-10 sm:w-10">
                     <WarningIcon className="h-6 w-6 text-red-400" aria-hidden="true" />
                 </div>
                 <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 className="text-lg font-bold text-white" id="modal-title">
+                    <h3 className="text-lg font-bold text-white" id="delete-modal-title">
                         Confirm Deletion
                     </h3>
                     <div className="mt-2">
                         <p className="text-sm text-gray-300">
-                          Are you sure you want to delete stop #{stopToDeleteIndex + 1} ({route[stopToDeleteIndex].street})? This action cannot be undone.
+                          Are you sure you want to delete stop #{stopToDeleteIndex + (locationStop ? 2 : 1)} ({deliveryStops[stopToDeleteIndex].street})? This action cannot be undone.
                         </p>
                     </div>
                 </div>
@@ -273,6 +429,38 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, onRouteUpdate
               >
                 Delete
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {isMapsModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fade-in" aria-modal="true" role="dialog" aria-labelledby="maps-modal-title">
+          <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-white" id="maps-modal-title">
+                Split Route for Google Maps
+              </h3>
+              <button onClick={() => setIsMapsModalOpen(false)} aria-label="Close modal" className="p-1 text-gray-400 hover:text-white">
+                <CloseIcon className="w-6 h-6" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-300 mt-2 mb-4">
+              Your route is too long for a single link. Use the buttons below to open it in chunks.
+            </p>
+            <div className="space-y-3">
+              {googleMapsLinks.map((link) => (
+                <a
+                  key={link.label}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-lg"
+                >
+                  <LinkIcon className="w-5 h-5 mr-2" />
+                  {link.label}
+                </a>
+              ))}
             </div>
           </div>
         </div>

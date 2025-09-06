@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import type { RouteStop, PackageType } from "../types";
+import type { RouteStop, PackageType, RouteSummary, TrafficInfo, TrafficStatus, Geolocation } from "../types";
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -25,11 +25,21 @@ interface GeminiAddressResponse {
     packageLabel?: string;
 }
 
+interface GeminiRouteInfoResponse {
+    stops: GeminiAddressResponse[];
+    routeBlockCode?: string;
+}
+
+
 const isValidPackageType = (type: string): type is PackageType => {
     return ["Box", "Envelope", "Plastic Bag", "Custom Sized", "Unknown"].includes(type);
 }
 
-export const processRouteScreenshot = async (file: File): Promise<RouteStop[]> => {
+const isValidTrafficStatus = (status: string): status is TrafficStatus => {
+    return ["Light", "Moderate", "Heavy", "Unknown"].includes(status);
+}
+
+export const processRouteScreenshot = async (file: File): Promise<{ stops: RouteStop[], routeBlockCode?: string }> => {
   if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable is not set.");
   }
@@ -45,7 +55,7 @@ export const processRouteScreenshot = async (file: File): Promise<RouteStop[]> =
   };
 
   const textPart = {
-    text: `Analyze this screenshot of an Amazon Flex delivery route. Extract all delivery addresses in the correct stop order. For each stop, extract the following details: 'stopNumber', 'street', 'city', 'state', 'zip', 'notes' (any delivery notes), 'packageType' (e.g., "Box", "Envelope", "Plastic Bag", "Custom Sized"), 'tba' (the long tracking number), and 'packageLabel' (the driver's aid sticker, e.g., "A.1Z"). Provide the output as a valid JSON array. If a field is not found, use an empty string or a sensible default like "Unknown" for packageType.`
+    text: `Analyze this screenshot, which may be one of several, from an Amazon Flex delivery route. Extract the route's block code (e.g., "#VCA1") and all delivery addresses in the correct stop order. For each stop, extract: 'stopNumber', 'street', 'city', 'state', 'zip', 'notes', 'packageType', 'tba', and 'packageLabel'. Provide the output as a valid JSON object with a "routeBlockCode" key and a "stops" key containing an array of stop objects. If a field isn't found, use defaults.`
   };
 
   try {
@@ -55,44 +65,50 @@ export const processRouteScreenshot = async (file: File): Promise<RouteStop[]> =
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              stopNumber: { type: Type.INTEGER, description: "The stop number in the route sequence." },
-              street: { type: Type.STRING, description: "The street address, including house/apartment number." },
-              city: { type: Type.STRING, description: "The city." },
-              state: { type: Type.STRING, description: "The two-letter state abbreviation." },
-              zip: { type: Type.STRING, description: "The 5-digit zip code." },
-              notes: { type: Type.STRING, description: "Any delivery notes, e.g., 'Leave at front door'." },
-              packageType: { type: Type.STRING, description: 'The type of package, e.g., "Box", "Envelope".' },
-              tba: { type: Type.STRING, description: "The TBA tracking number." },
-              packageLabel: { type: Type.STRING, description: "The driver's aid sticker code, e.g., 'A.1Z'." },
-            },
-            required: ["stopNumber", "street", "city", "state", "zip"],
-          },
+          type: Type.OBJECT,
+          properties: {
+            routeBlockCode: { type: Type.STRING, description: "The route's block code, like '#VCA1'."},
+            stops: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  stopNumber: { type: Type.INTEGER, description: "The stop number in the route sequence." },
+                  street: { type: Type.STRING, description: "The street address, including house/apartment number." },
+                  city: { type: Type.STRING, description: "The city." },
+                  state: { type: Type.STRING, description: "The two-letter state abbreviation." },
+                  zip: { type: Type.STRING, description: "The 5-digit zip code." },
+                  notes: { type: Type.STRING, description: "Any delivery notes, e.g., 'Leave at front door'." },
+                  packageType: { type: Type.STRING, description: 'The type of package, e.g., "Box", "Envelope".' },
+                  tba: { type: Type.STRING, description: "The TBA tracking number." },
+                  packageLabel: { type: Type.STRING, description: "The driver's aid sticker code, e.g., 'A.1Z'." },
+                },
+                required: ["stopNumber", "street", "city", "state", "zip"],
+              },
+            }
+          }
         },
       },
     });
 
     const jsonText = response.text.trim();
-    let rawAddresses: GeminiAddressResponse[];
+    let parsedResponse: GeminiRouteInfoResponse;
 
     try {
       const parsedJson = JSON.parse(jsonText);
-      if (!Array.isArray(parsedJson)) {
-        console.error("Gemini API returned a non-array JSON object:", parsedJson);
-        throw new Error("Parsed JSON is not an array.");
+      if (typeof parsedJson !== 'object' || !Array.isArray(parsedJson.stops)) {
+        console.error("Gemini API returned an invalid JSON structure:", parsedJson);
+        throw new Error("Parsed JSON is not a valid route info object.");
       }
-      rawAddresses = parsedJson;
+      parsedResponse = parsedJson as GeminiRouteInfoResponse;
     } catch (e) {
-      console.error("Failed to parse or validate Gemini API response as a JSON array.");
+      console.error("Failed to parse or validate Gemini API response as JSON.");
       console.error("Received text:", jsonText);
       console.error("Parsing error:", e);
       throw new Error("The AI model returned an unexpected data format. Please try again with a clearer screenshot.");
     }
     
-    // Sort by stop number just in case the model doesn't return them in order
+    const rawAddresses = parsedResponse.stops;
     rawAddresses.sort((a, b) => a.stopNumber - b.stopNumber);
 
     const addresses: RouteStop[] = rawAddresses.map(addr => {
@@ -110,7 +126,7 @@ export const processRouteScreenshot = async (file: File): Promise<RouteStop[]> =
       };
     });
     
-    return addresses;
+    return { stops: addresses, routeBlockCode: parsedResponse.routeBlockCode };
   } catch (error) {
     console.error("Error calling or processing Gemini API response:", error);
     if (error instanceof Error && error.message.startsWith("The AI model returned")) {
@@ -121,7 +137,7 @@ export const processRouteScreenshot = async (file: File): Promise<RouteStop[]> =
 };
 
 
-export const optimizeRouteOrder = async (stops: RouteStop[]): Promise<RouteStop[]> => {
+export const optimizeRouteOrder = async (stops: RouteStop[], startLocation?: Geolocation): Promise<RouteStop[]> => {
   if (stops.length < 2) return stops;
   if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable is not set.");
@@ -133,9 +149,18 @@ export const optimizeRouteOrder = async (stops: RouteStop[]): Promise<RouteStop[
     originalStopNumber: s.originalStopNumber,
     address: `${s.street}, ${s.city}, ${s.state} ${s.zip}`
   }));
+  
+  let promptText = `You are an expert route optimization assistant for delivery drivers. I have a list of stops identified by their 'originalStopNumber' and address: ${JSON.stringify(promptInput)}.`;
+
+  if (startLocation) {
+    promptText += ` The driver is starting from the GPS coordinates: latitude ${startLocation.lat}, longitude ${startLocation.lon}.`;
+  }
+
+  promptText += ` Reorder these stops to create the most efficient delivery route. Provide the response as a JSON array of objects, where each object contains only the 'originalStopNumber' in the new optimized sequence. For example, if the optimal route is stop 5, then stop 2, your response should be [{ "originalStopNumber": 5 }, { "originalStopNumber": 2 }].`;
+
 
   const textPart = {
-    text: `You are an expert route optimization assistant for delivery drivers. I have a list of stops identified by their 'originalStopNumber' and address: ${JSON.stringify(promptInput)}. Reorder these stops to create the most efficient delivery route. Provide the response as a JSON array of objects, where each object contains only the 'originalStopNumber' in the new optimized sequence. For example, if the optimal route is stop 5, then stop 2, your response should be [{ "originalStopNumber": 5 }, { "originalStopNumber": 2 }].`
+    text: promptText
   };
 
   try {
@@ -185,5 +210,102 @@ export const optimizeRouteOrder = async (stops: RouteStop[]): Promise<RouteStop[
   } catch (error) {
     console.error("Error calling Gemini API for route optimization:", error);
     throw new Error("Failed to get an optimized route from the AI. Please try again.");
+  }
+};
+
+
+export const getRouteSummary = async (stops: RouteStop[]): Promise<RouteSummary> => {
+  if (stops.length === 0) {
+    return { totalStops: 0, totalDistance: "0 miles", totalTime: "0 minutes" };
+  }
+  if (!process.env.API_KEY) {
+    throw new Error("API_KEY environment variable is not set.");
+  }
+  
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  const addressesString = stops.map(s => `"${s.street}, ${s.city}, ${s.state} ${s.zip}"`).join(', ');
+
+  const textPart = {
+    text: `Given the following list of ordered delivery addresses: [${addressesString}], calculate the estimated total driving distance and total driving time for the entire route. Assume travel is by car and starts at the first address and ends at the last. Provide the response as a single JSON object with two keys: "totalDistance" (a string like "X miles" or "X km") and "totalTime" (a string like "X hours Y minutes").`
+  };
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: { parts: [textPart] },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            totalDistance: { type: Type.STRING, description: "The estimated total driving distance, e.g., '52.3 miles'." },
+            totalTime: { type: Type.STRING, description: "The estimated total driving time, e.g., '2 hours 15 minutes'." },
+          },
+          required: ["totalDistance", "totalTime"],
+        },
+      },
+    });
+
+    const jsonText = response.text.trim();
+    const summaryData = JSON.parse(jsonText);
+
+    return {
+      totalStops: stops.length,
+      totalDistance: summaryData.totalDistance,
+      totalTime: summaryData.totalTime,
+    };
+  } catch (error) {
+    console.error("Error calling Gemini API for route summary:", error);
+    throw new Error("Failed to get route summary from the AI.");
+  }
+};
+
+export const getLiveTraffic = async (stops: RouteStop[]): Promise<TrafficInfo> => {
+  if (stops.length < 2) {
+    return { status: "Unknown", summary: "At least two stops are needed to analyze traffic.", lastUpdated: new Date().toLocaleTimeString() };
+  }
+  if (!process.env.API_KEY) {
+    throw new Error("API_KEY environment variable is not set.");
+  }
+  
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  const addressesString = stops.map(s => `"${s.street}, ${s.city}, ${s.state} ${s.zip}"`).join('; ');
+
+  const textPart = {
+    text: `Analyze the current, real-time traffic conditions for a delivery route between the following ordered stops: ${addressesString}. Provide a concise analysis as a JSON object with two keys: "status" (one of "Light", "Moderate", or "Heavy") and "summary" (a brief, one-sentence description of the current traffic conditions, mentioning any significant delays or clear areas).`
+  };
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: { parts: [textPart] },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            status: { type: Type.STRING, description: 'Traffic status: "Light", "Moderate", or "Heavy".' },
+            summary: { type: Type.STRING, description: "A brief summary of traffic conditions." },
+          },
+          required: ["status", "summary"],
+        },
+      },
+    });
+
+    const jsonText = response.text.trim();
+    const trafficData = JSON.parse(jsonText);
+    
+    const status = isValidTrafficStatus(trafficData.status) ? trafficData.status : "Unknown";
+
+    return {
+      status: status,
+      summary: trafficData.summary,
+      lastUpdated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+  } catch (error) {
+    console.error("Error calling Gemini API for live traffic:", error);
+    throw new Error("Failed to get live traffic data from the AI.");
   }
 };
