@@ -1,5 +1,7 @@
 export type PackageType = "Box" | "Envelope" | "Plastic Bag" | "Custom Sized" | "Unknown";
 
+export type StopType = "House" | "Apartment" | "Business" | "Locker" | "Unknown";
+
 export interface RouteStop {
   originalStopNumber: number;
   street: string;
@@ -11,6 +13,9 @@ export interface RouteStop {
   tba: string;
   packageLabel: string;
   type?: 'delivery' | 'location';
+  deliveryWindowEnd?: string; // e.g., "17:00"
+  stopType: StopType;
+  isPriority?: boolean;
 }
 
 export interface RouteSummary {
@@ -28,7 +33,16 @@ export interface TrafficInfo {
   lastUpdated: string;
 }
 
+export interface WeatherInfo {
+  temperature: string;
+  condition: string;
+}
+
 export interface Geolocation {
   lat: number;
   lon: number;
+}
+
+export interface User {
+  tier: 'Free' | 'Pro';
 }

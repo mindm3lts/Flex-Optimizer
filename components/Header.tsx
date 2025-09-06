@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { RouteIcon } from './icons';
+import { RouteIcon, UserCircleIcon } from './icons';
+
+interface HeaderProps {
+  onOpenSubModal: () => void;
+}
 
 const LiveClock: React.FC = () => {
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -10,29 +14,26 @@ const LiveClock: React.FC = () => {
     }, []);
 
     const formattedTime = currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const formattedDate = currentTime.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
-
-    return (
-        <div className="text-center text-sm text-gray-400 font-mono">
-            <span>{formattedDate}</span>
-            <span className="mx-2">|</span>
-            <span>{formattedTime}</span>
-        </div>
-    );
+    return <div className="text-sm font-mono bg-gray-900/50 px-2 py-1 rounded-md">{formattedTime}</div>;
 };
 
-
-export const Header: React.FC = () => {
-  return (
-    <header className="flex items-center justify-center text-center flex-col">
-      <div className="bg-cyan-500 p-3 rounded-full mb-3 shadow-lg">
-        <RouteIcon className="w-8 h-8 text-white" />
-      </div>
-      <h1 className="text-3xl font-bold text-white tracking-tight">
-        Flex Route <span className="text-cyan-400">Optimizer</span>
-      </h1>
-      <p className="text-gray-400 mt-1 mb-3">Upload your route screenshot to get started.</p>
-      <LiveClock />
-    </header>
-  );
+export const Header: React.FC<HeaderProps> = ({ onOpenSubModal }) => {
+    return (
+        <header className="flex items-center justify-between">
+          <div className="flex items-center">
+            <RouteIcon className="w-8 h-8 text-cyan-400" />
+            <h1 className="text-xl font-bold ml-3">Flex Route Optimizer</h1>
+          </div>
+          <div className="flex items-center space-x-2">
+            <LiveClock />
+            <button 
+              onClick={onOpenSubModal} 
+              className="p-2 rounded-full hover:bg-gray-700 transition-colors"
+              aria-label="Open subscription settings"
+            >
+              <UserCircleIcon className="w-6 h-6 text-gray-300" />
+            </button>
+          </div>
+        </header>
+    );
 };

@@ -1,11 +1,14 @@
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { FileUpload } from './components/FileUpload';
 import { RouteDisplay } from './components/RouteDisplay';
 import { Spinner } from './components/Spinner';
+import { LiveConditions } from './components/LiveConditions';
+import { SubscriptionModal } from './components/SubscriptionModal';
 import { processRouteScreenshot, optimizeRouteOrder, getRouteSummary, getLiveTraffic } from './services/geminiService';
-import type { RouteStop, RouteSummary, TrafficInfo } from './types';
-import { InfoIcon, SaveIcon, LoadIcon, AndroidIcon, CheckIcon, WarningIcon, PlusCircleIcon } from './components/icons';
+import type { RouteStop, RouteSummary, TrafficInfo, WeatherInfo, User } from './types';
+import { InfoIcon, SaveIcon, LoadIcon, CheckIcon, WarningIcon, PlusCircleIcon } from './components/icons';
 
 const App: React.FC = () => {
   const [screenshotFiles, setScreenshotFiles] = useState<File[]>([]);
@@ -13,36 +16,74 @@ const App: React.FC = () => {
   const [route, setRoute] = useState<RouteStop[] | null>(null);
   const [summary, setSummary] = useState<RouteSummary | null>(null);
   const [trafficInfo, setTrafficInfo] = useState<TrafficInfo | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
+  const [weatherInfo, setWeatherInfo] = useState<WeatherInfo | null>(null);
+  const [appStatus, setAppStatus] = useState<'idle' | 'processing' | 'optimizing'>('idle');
   const [isSummaryLoading, setIsSummaryLoading] = useState<boolean>(false);
   const [isTrafficLoading, setIsTrafficLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSavedRoute, setHasSavedRoute] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+
+  const [user, setUser] = useState<User>({ tier: 'Free' });
+  const [routeCount, setRouteCount] = useState<number>(0);
+  const [isSubModalOpen, setIsSubModalOpen] = useState(false);
   
   const addMoreInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const savedRoute = localStorage.getItem('flex-optimizer-saved-route');
-    setHasSavedRoute(!!savedRoute);
+    try {
+        const savedTier = localStorage.getItem('flex-optimizer-tier') as 'Free' | 'Pro' | null;
+        const savedCount = localStorage.getItem('flex-optimizer-count');
+        const savedRoute = localStorage.getItem('flex-optimizer-saved-route');
+
+        if (savedTier) {
+            setUser({ tier: savedTier });
+        }
+        if (savedCount) {
+            setRouteCount(parseInt(savedCount, 10));
+        }
+        setHasSavedRoute(!!savedRoute);
+    } catch (e) {
+        console.error("Could not load user data from localStorage", e);
+    }
+
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const routeData = urlParams.get('routeData');
+
+    if (routeData) {
+      try {
+        const decodedData = atob(decodeURIComponent(routeData));
+        const parsedRoute = JSON.parse(decodedData) as RouteStop[];
+
+        if (Array.isArray(parsedRoute) && parsedRoute.length > 0 && 'street' in parsedRoute[0]) {
+          setRoute(parsedRoute);
+          setScreenshotFiles([]);
+          setScreenshotPreviews([]);
+          setError(null);
+        } else {
+          throw new Error("Invalid route data in URL.");
+        }
+      } catch (e) {
+        console.error("Failed to load route from URL:", e);
+        setError("Could not load shared route. The link may be corrupted or expired.");
+      } finally {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
   }, []);
   
-  // Clean up preview URLs when component unmounts or previews change
   useEffect(() => {
     return () => {
       screenshotPreviews.forEach(URL.revokeObjectURL);
     };
   }, [screenshotPreviews]);
 
-  // Effect to fetch route summary whenever the route changes
   useEffect(() => {
     const fetchSummary = async () => {
-      // Filter out the location stop before sending to summary service
       const deliveryStops = route?.filter(s => s.type !== 'location') ?? [];
       if (deliveryStops.length > 0) {
         setIsSummaryLoading(true);
-        // Preserve existing block code while fetching new summary
         const existingBlockCode = summary?.routeBlockCode;
         try {
           const summaryData = await getRouteSummary(deliveryStops);
@@ -53,7 +94,7 @@ const App: React.FC = () => {
         } finally {
           setIsSummaryLoading(false);
         }
-      } else if (route) { // Case where only location stop exists
+      } else if (route) {
         setSummary({ totalStops: 0, totalDistance: "N/A", totalTime: "N/A", routeBlockCode: summary?.routeBlockCode });
       }
       else {
@@ -62,9 +103,8 @@ const App: React.FC = () => {
     };
 
     fetchSummary();
-  }, [route]);
+  }, [route, summary?.routeBlockCode]);
 
-  // Effect to fetch and poll for live traffic data
   useEffect(() => {
     const deliveryStops = route?.filter(s => s.type !== 'location') ?? [];
     if (deliveryStops.length === 0) {
@@ -101,15 +141,14 @@ const App: React.FC = () => {
     };
   }, [route]);
 
-
   const handleFileChange = (files: File[], mode: 'replace' | 'append' = 'replace') => {
     if (files.length === 0) return;
 
     if (mode === 'replace') {
-        screenshotPreviews.forEach(URL.revokeObjectURL); // clean up old ones
+        screenshotPreviews.forEach(URL.revokeObjectURL);
         setScreenshotFiles(files);
         setScreenshotPreviews(files.map(file => URL.createObjectURL(file)));
-    } else { // append
+    } else {
         setScreenshotFiles(prev => [...prev, ...files]);
         setScreenshotPreviews(prev => [...prev, ...files.map(file => URL.createObjectURL(file))]);
     }
@@ -138,7 +177,7 @@ const App: React.FC = () => {
     setScreenshotPreviews([]);
     setRoute(null);
     setError(null);
-    setIsLoading(false);
+    setAppStatus('idle');
   };
 
   const handleProcessRoute = useCallback(async () => {
@@ -146,8 +185,14 @@ const App: React.FC = () => {
       setError('Please upload one or more screenshots first.');
       return;
     }
+    
+    if (user.tier === 'Free' && routeCount >= 5) {
+        setError("You've reached your free limit of 5 routes per month. Please upgrade to Pro.");
+        setIsSubModalOpen(true);
+        return;
+    }
 
-    setIsLoading(true);
+    setAppStatus('processing');
     setError(null);
     setRoute(null);
     setSummary(null);
@@ -173,6 +218,12 @@ const App: React.FC = () => {
         const sortedAddresses = [...addresses].sort((a, b) => a.originalStopNumber - b.originalStopNumber);
         setRoute(sortedAddresses);
         setSummary({ totalStops: sortedAddresses.length, totalDistance: "...", totalTime: "...", routeBlockCode });
+        
+        if (user.tier === 'Free') {
+          const newCount = routeCount + 1;
+          setRouteCount(newCount);
+          localStorage.setItem('flex-optimizer-count', newCount.toString());
+        }
       } else {
         setError('Could not extract any addresses from the images. Please try other screenshots.');
       }
@@ -180,9 +231,9 @@ const App: React.FC = () => {
       console.error(err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred. Please try again.');
     } finally {
-      setIsLoading(false);
+      setAppStatus('idle');
     }
-  }, [screenshotFiles]);
+  }, [screenshotFiles, user, routeCount]);
 
   const handleSaveRoute = useCallback(() => {
     if (route) {
@@ -208,7 +259,7 @@ const App: React.FC = () => {
             setScreenshotFiles([]);
             setScreenshotPreviews([]);
             setError(null);
-            setIsLoading(false);
+            setAppStatus('idle');
         } else {
             throw new Error("Saved data is not a valid route.");
         }
@@ -221,16 +272,16 @@ const App: React.FC = () => {
     }
   }, []);
   
-  const handleAiOptimize = useCallback(async (useLocation: boolean) => {
+  const handleAiOptimize = useCallback(async (useLocation: boolean, avoidLeftTurns: boolean) => {
     const deliveryStops = route?.filter(s => s.type !== 'location') ?? [];
     if (deliveryStops.length < 1) return;
 
-    setIsOptimizing(true);
+    setAppStatus('optimizing');
     setError(null);
 
     const performOptimization = async (location?: { lat: number, lon: number }) => {
       try {
-        const optimized = await optimizeRouteOrder(deliveryStops, location);
+        const optimized = await optimizeRouteOrder(deliveryStops, location, avoidLeftTurns);
         if (location) {
           const currentLocationStop: RouteStop = {
             originalStopNumber: 0,
@@ -243,6 +294,7 @@ const App: React.FC = () => {
             tba: '',
             packageLabel: '',
             type: 'location',
+            stopType: 'Unknown',
           };
           setRoute([currentLocationStop, ...optimized]);
         } else {
@@ -252,7 +304,7 @@ const App: React.FC = () => {
         console.error(err);
         setError(err instanceof Error ? err.message : 'An unknown error occurred during optimization.');
       } finally {
-        setIsOptimizing(false);
+        setAppStatus('idle');
       }
     };
 
@@ -274,7 +326,7 @@ const App: React.FC = () => {
               break;
           }
           setError(errorMessage);
-          setIsOptimizing(false);
+          setAppStatus('idle');
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
@@ -283,23 +335,26 @@ const App: React.FC = () => {
     }
   }, [route]);
 
-  const showNativeFeatureInfo = () => {
-    alert(
-      "Automatic Route Sync\n\n" +
-      "This feature requires our native Android app.\n\n" +
-      "The native app uses Android's Accessibility Service to securely read your route directly from the Flex app, eliminating the need for screenshots. This feature is not possible in a web app for security reasons."
-    );
+  const handleSubscriptionChange = (newTier: 'Free' | 'Pro') => {
+      setUser({ tier: newTier });
+      localStorage.setItem('flex-optimizer-tier', newTier);
+      if (newTier === 'Pro') {
+          setIsSubModalOpen(false); 
+          setError(null); 
+      }
   };
 
   return (
     <div className="min-h-screen bg-gray-900 font-sans flex flex-col items-center">
       <div className="w-full max-w-md mx-auto p-4 flex flex-col flex-grow">
-        <Header />
+        <Header onOpenSubModal={() => setIsSubModalOpen(true)} />
         <main className="flex-grow flex flex-col mt-6">
           {screenshotPreviews.length === 0 && !route && (
             <>
               <FileUpload onFileChange={handleFileChange} />
               
+              <LiveConditions />
+
               <div className="mt-4 p-4 bg-gray-800 border border-gray-700 rounded-lg">
                 <div className="flex items-start">
                   <InfoIcon className="w-6 h-6 text-cyan-400 mr-3 flex-shrink-0 mt-1" />
@@ -307,6 +362,7 @@ const App: React.FC = () => {
                     <h3 className="font-semibold text-cyan-400">Screenshot Tips</h3>
                     <ul className="list-disc list-inside text-gray-400 text-sm mt-1 space-y-1">
                       <li>Upload multiple screenshots for your entire block.</li>
+                      <li>For best results, use standard screenshots instead of one long, scrolling screenshot.</li>
                       <li>Ensure all stops are visible on the screen.</li>
                       <li>Text must be clear and not blurry.</li>
                       <li>Avoid any screen glare or obstructions.</li>
@@ -330,25 +386,6 @@ const App: React.FC = () => {
                   Load Saved Route
                 </button>
               )}
-              
-              <div className="mt-4 p-4 bg-gray-800 border-2 border-dashed border-green-500/50 rounded-lg">
-                <div className="flex items-start">
-                  <AndroidIcon className="w-8 h-8 text-green-400 mr-3 flex-shrink-0 mt-1" />
-                  <div>
-                    <h3 className="font-semibold text-green-400">Coming Soon: Automatic Sync</h3>
-                    <p className="text-gray-400 text-sm mt-1">
-                      A future native Android app version will automatically import your route—no screenshots needed!
-                    </p>
-                     <button
-                        onClick={showNativeFeatureInfo}
-                        className="mt-3 w-full flex items-center justify-center bg-green-600/50 text-green-200 font-bold py-2 px-4 rounded-lg transition duration-300 cursor-help"
-                      >
-                        <InfoIcon className="w-5 h-5 mr-2" />
-                        Learn More
-                      </button>
-                  </div>
-                </div>
-              </div>
             </>
           )}
 
@@ -380,7 +417,7 @@ const App: React.FC = () => {
               </div>
           )}
 
-          {isLoading && <Spinner />}
+          {appStatus === 'processing' && <Spinner />}
 
           {error && (
             <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg relative mt-6" role="alert">
@@ -389,31 +426,31 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {route && !isLoading && (
+          {route && appStatus !== 'processing' && (
             <RouteDisplay
               route={route}
               summary={summary}
               trafficInfo={trafficInfo}
-              isSummaryLoading={isSummaryLoading}
-              isTrafficLoading={isTrafficLoading}
               onRouteUpdate={setRoute}
               onAiOptimize={handleAiOptimize}
-              isOptimizing={isOptimizing}
+              isOptimizing={appStatus === 'optimizing'}
             />
           )}
 
           <div className="mt-auto pt-6 flex flex-col space-y-3">
-              {screenshotFiles.length > 0 && !isLoading && !route && (
+              {/* FIX: Removed `appStatus !== 'processing'` from the condition to fix a TypeScript error.
+                  The button is now hidden based on `!route` and disabled when `appStatus === 'processing'`. */}
+              {screenshotFiles.length > 0 && !route && (
                   <button
                     onClick={handleProcessRoute}
-                    disabled={isLoading}
-                    className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-lg flex items-center justify-center disabled:bg-gray-600 disabled:cursor-not-allowed disabled:transform-none"
+                    disabled={appStatus === 'processing'}
+                    className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 shadow-lg flex items-center justify-center disabled:bg-gray-600 disabled:cursor-not-allowed disabled:transform-none disabled:opacity-50"
                   >
                     Process Route
                   </button>
               )}
               
-              {route && !isLoading && (
+              {route && appStatus !== 'processing' && (
                 <button
                   onClick={handleSaveRoute}
                   disabled={saveStatus === 'saved'}
@@ -448,6 +485,13 @@ const App: React.FC = () => {
           </div>
         </main>
       </div>
+      {isSubModalOpen && (
+          <SubscriptionModal
+              user={user}
+              onClose={() => setIsSubModalOpen(false)}
+              onSubscriptionChange={handleSubscriptionChange}
+          />
+      )}
     </div>
   );
 };
