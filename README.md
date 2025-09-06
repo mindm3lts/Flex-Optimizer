@@ -2,7 +2,7 @@
 
 An open-source, AI-powered tool for Amazon Flex drivers to optimize their delivery routes. Upload screenshots of your itinerary, and the app extracts addresses to generate the most efficient route for Google Maps. This project is completely free, with no ads or paywalls.
 
-![Main screen of the application showing the file upload area](https://storage.googleapis.com/gemini-web-dev-figma-canvas/2024/6/12/57a53f06-d249-41f2-95f7-87364b38d356.png)
+![Main screen of the application showing the file upload area](https://placehold.co/800x450/1e293b/93c5fd/png?text=Flex+Route+Optimizer\nMain+Screen)
 _Caption: The main interface, ready for you to upload your route screenshots._
 
 ## ✨ Features
@@ -19,7 +19,7 @@ _Caption: The main interface, ready for you to upload your route screenshots._
 -   **☀️ Dark & Light Mode:** A sleek, modern interface that adapts to your preference.
 -   **🔓 100% Free & Open Source:** No subscriptions, no limits, no ads.
 
-![Optimized route displayed in the app](https://storage.googleapis.com/gemini-web-dev-figma-canvas/2024/6/12/c8b3e945-8f65-4f7f-a035-26fd0c0b9f52.png)
+![Optimized route displayed in the app](https://placehold.co/800x600/1e293b/93c5fd/png?text=Optimized+Route\nDisplay)
 _Caption: An example of a processed and optimized route, ready for navigation._
 
 ---

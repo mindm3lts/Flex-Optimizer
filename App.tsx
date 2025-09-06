@@ -5,7 +5,7 @@ import { RouteDisplay } from './components/RouteDisplay';
 import { Spinner } from './components/Spinner';
 import { LiveConditions } from './components/LiveConditions';
 import { processRouteScreenshot, optimizeRouteOrder, getRouteSummary, getLiveTraffic } from './services/geminiService';
-import type { RouteStop, RouteSummary, TrafficInfo, WeatherInfo } from './types';
+import type { RouteStop, RouteSummary, TrafficInfo } from './types';
 import { InfoIcon, SaveIcon, LoadIcon, CheckIcon, WarningIcon, PlusCircleIcon } from './components/icons';
 
 const App: React.FC = () => {
@@ -14,7 +14,6 @@ const App: React.FC = () => {
   const [route, setRoute] = useState<RouteStop[] | null>(null);
   const [summary, setSummary] = useState<RouteSummary | null>(null);
   const [trafficInfo, setTrafficInfo] = useState<TrafficInfo | null>(null);
-  const [weatherInfo, setWeatherInfo] = useState<WeatherInfo | null>(null);
   const [appStatus, setAppStatus] = useState<'idle' | 'processing' | 'optimizing'>('idle');
   const [isSummaryLoading, setIsSummaryLoading] = useState<boolean>(false);
   const [isTrafficLoading, setIsTrafficLoading] = useState<boolean>(false);
