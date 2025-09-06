@@ -56,6 +56,26 @@ const App: React.FC = () => {
     setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
   };
 
+  const updateRouteAndCurrentStop = (newRoute: RouteStop[] | null) => {
+    if (!newRoute) {
+        setRoute(null);
+        return;
+    }
+    let currentStopFound = false;
+    const updatedRoute = newRoute.map(stop => {
+        const isCompleted = stop.status && stop.status !== 'pending';
+        if (stop.type === 'location' || isCompleted) {
+            return { ...stop, isCurrentStop: false };
+        }
+        if (!currentStopFound) {
+            currentStopFound = true;
+            return { ...stop, isCurrentStop: true };
+        }
+        return { ...stop, isCurrentStop: false };
+    });
+    setRoute(updatedRoute);
+  };
+
 
   useEffect(() => {
     try {
@@ -84,7 +104,7 @@ const App: React.FC = () => {
         const parsedRoute = JSON.parse(decodedData) as RouteStop[];
 
         if (Array.isArray(parsedRoute) && parsedRoute.length > 0 && 'street' in parsedRoute[0]) {
-          setRoute(parsedRoute);
+          updateRouteAndCurrentStop(parsedRoute);
           setScreenshotFiles([]);
           setScreenshotPreviews([]);
           setError(null);
@@ -180,7 +200,7 @@ const App: React.FC = () => {
         setScreenshotPreviews(prev => [...prev, ...files.map(file => URL.createObjectURL(file))]);
     }
 
-    setRoute(null);
+    updateRouteAndCurrentStop(null);
     setError(null);
   };
   
@@ -202,7 +222,7 @@ const App: React.FC = () => {
     screenshotPreviews.forEach(URL.revokeObjectURL);
     setScreenshotFiles([]);
     setScreenshotPreviews([]);
-    setRoute(null);
+    updateRouteAndCurrentStop(null);
     setError(null);
     setAppStatus('idle');
   };
@@ -221,7 +241,7 @@ const App: React.FC = () => {
 
     setAppStatus('processing');
     setError(null);
-    setRoute(null);
+    updateRouteAndCurrentStop(null);
     setSummary(null);
 
     try {
@@ -243,7 +263,7 @@ const App: React.FC = () => {
       
       if (addresses && addresses.length > 0) {
         const sortedAddresses = [...addresses].sort((a, b) => a.originalStopNumber - b.originalStopNumber);
-        setRoute(sortedAddresses);
+        updateRouteAndCurrentStop(sortedAddresses);
         setSummary({ totalStops: sortedAddresses.length, totalDistance: "...", totalTime: "...", routeBlockCode });
         
         if (user.tier === 'Free') {
@@ -282,7 +302,7 @@ const App: React.FC = () => {
       try {
         const savedRoute = JSON.parse(savedRouteJSON) as RouteStop[];
         if (Array.isArray(savedRoute) && savedRoute.length > 0) {
-            setRoute(savedRoute);
+            updateRouteAndCurrentStop(savedRoute);
             setScreenshotFiles([]);
             setScreenshotPreviews([]);
             setError(null);
@@ -322,10 +342,11 @@ const App: React.FC = () => {
             packageLabel: '',
             type: 'location',
             stopType: 'Unknown',
+            status: 'delivered'
           };
-          setRoute([currentLocationStop, ...optimized]);
+          updateRouteAndCurrentStop([currentLocationStop, ...optimized]);
         } else {
-          setRoute(optimized);
+          updateRouteAndCurrentStop(optimized);
         }
       } catch (err) {
         console.error(err);
@@ -462,7 +483,7 @@ const App: React.FC = () => {
               route={route}
               summary={summary}
               trafficInfo={trafficInfo}
-              onRouteUpdate={setRoute}
+              onRouteUpdate={updateRouteAndCurrentStop}
               onAiOptimize={handleAiOptimize}
               isOptimizing={appStatus === 'optimizing'}
             />

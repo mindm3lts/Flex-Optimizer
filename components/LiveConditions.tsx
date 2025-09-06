@@ -1,7 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { getCurrentWeather } from '../services/geminiService';
-import type { WeatherInfo } from '../types';
-import { ThermometerIcon, WarningIcon } from './icons';
+import type { WeatherInfo, WeatherIconType } from '../types';
+import { ThermometerIcon, WarningIcon, SunIcon, CloudIcon, PartlyCloudyIcon, RainIcon, SnowIcon, ThunderstormIcon, WindyIcon } from './icons';
+
+const WeatherIcon: React.FC<{ icon: WeatherIconType }> = ({ icon }) => {
+    const commonProps = { className: "w-6 h-6 mr-2 flex-shrink-0" };
+    switch (icon) {
+        case 'SUNNY':
+            return <SunIcon {...commonProps} className={`${commonProps.className} text-yellow-400`} />;
+        case 'PARTLY_CLOUDY':
+            return <PartlyCloudyIcon {...commonProps} />;
+        case 'CLOUDY':
+            return <CloudIcon {...commonProps} className={`${commonProps.className} text-gray-400 dark:text-gray-500`} />;
+        case 'RAINY':
+            return <RainIcon {...commonProps} className={`${commonProps.className} text-blue-500 dark:text-blue-400`} />;
+        case 'THUNDERSTORM':
+            return <ThunderstormIcon {...commonProps} className={`${commonProps.className} text-purple-500 dark:text-purple-400`} />;
+        case 'SNOWY':
+            return <SnowIcon {...commonProps} className={`${commonProps.className} text-cyan-300 dark:text-cyan-400`} />;
+        case 'WINDY':
+             return <WindyIcon {...commonProps} className={`${commonProps.className} text-gray-500 dark:text-gray-400`} />;
+        case 'UNKNOWN':
+        default:
+            return <ThermometerIcon className="w-5 h-5 mr-2 text-gray-500 dark:text-gray-400" />;
+    }
+};
+
 
 export const LiveConditions: React.FC = () => {
     const [weather, setWeather] = useState<WeatherInfo | null>(null);
@@ -9,13 +33,30 @@ export const LiveConditions: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!navigator.geolocation) {
-            setError("Geolocation is not supported by your browser.");
-            setIsLoading(false);
-            return;
-        }
+        const CACHE_KEY = 'flex-optimizer-weather-cache';
+        const CACHE_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
         const fetchWeather = () => {
+             try {
+                const cachedDataJSON = localStorage.getItem(CACHE_KEY);
+                if (cachedDataJSON) {
+                    const { data, timestamp } = JSON.parse(cachedDataJSON);
+                    if (Date.now() - timestamp < CACHE_DURATION_MS) {
+                        setWeather(data);
+                        setIsLoading(false);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error("Could not read weather from cache", e);
+            }
+
+            if (!navigator.geolocation) {
+                setError("Geolocation is not supported by your browser.");
+                setIsLoading(false);
+                return;
+            }
+
             navigator.geolocation.getCurrentPosition(
                 async (position) => {
                     try {
@@ -23,9 +64,20 @@ export const LiveConditions: React.FC = () => {
                         const weatherData = await getCurrentWeather({ lat: latitude, lon: longitude });
                         setWeather(weatherData);
                         setError(null);
+                        
+                        try {
+                            const cacheEntry = { data: weatherData, timestamp: Date.now() };
+                            localStorage.setItem(CACHE_KEY, JSON.stringify(cacheEntry));
+                        } catch (e) {
+                             console.error("Could not save weather to cache", e);
+                        }
                     } catch (err) {
                         console.error("Failed to fetch weather data:", err);
-                        setError("Could not retrieve weather data.");
+                        if (err instanceof Error && err.message.includes('RESOURCE_EXHAUSTED')) {
+                           setError("Weather service is busy. Please try again later.");
+                        } else {
+                           setError("Could not retrieve weather data.");
+                        }
                     } finally {
                         setIsLoading(false);
                     }
@@ -69,7 +121,7 @@ export const LiveConditions: React.FC = () => {
         if (weather) {
             return (
                  <div className="flex items-center text-gray-800 dark:text-gray-300">
-                    <ThermometerIcon className="w-5 h-5 mr-2 text-cyan-500 dark:text-cyan-400" />
+                    <WeatherIcon icon={weather.icon} />
                     <p className="font-semibold">{weather.temperature}</p>
                     <span className="mx-2 text-gray-300 dark:text-gray-600">|</span>
                     <p>{weather.condition}</p>

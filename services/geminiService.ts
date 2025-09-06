@@ -87,7 +87,12 @@ Output ONLY a valid JSON object matching the provided schema.`,
 
   const resultText = response.text.trim();
   try {
-    return JSON.parse(resultText);
+    const parsedResult = JSON.parse(resultText);
+    const stopsWithStatus = parsedResult.stops.map((stop: RouteStop) => ({
+      ...stop,
+      status: 'pending' as const,
+    }));
+    return { ...parsedResult, stops: stopsWithStatus };
   } catch (e) {
     console.error("Failed to parse JSON response for screenshot processing:", resultText, e);
     if (e instanceof SyntaxError) {
@@ -104,7 +109,7 @@ export const optimizeRouteOrder = async (stops: RouteStop[], startLocation?: Geo
     ${avoidLeftTurns ? 'The driver prefers to avoid left turns where possible. Please factor this into the optimization.' : ''}
     
     The output must be the full list of stops, reordered for optimal efficiency.
-    Each stop object in the output must be identical in structure to the input objects. Do not add, remove, or alter any fields.
+    Each stop object in the output must be identical in structure to the input objects. Do not add, remove, or alter any fields, including optional ones like 'status', 'completedAt', or 'isCurrentStop'.
     Input Stops:
     ${JSON.stringify(stops, null, 2)}
     Return ONLY the reordered list of stops as a valid JSON array.
@@ -133,6 +138,9 @@ export const optimizeRouteOrder = async (stops: RouteStop[], startLocation?: Geo
             type: { type: Type.STRING },
             deliveryWindowEnd: { type: Type.STRING },
             isPriority: { type: Type.BOOLEAN },
+            status: { type: Type.STRING, enum: ["pending", "delivered", "attempted", "skipped"] },
+            completedAt: { type: Type.STRING },
+            isCurrentStop: { type: Type.BOOLEAN },
           },
           required: ["originalStopNumber", "street", "city", "state", "zip", "label", "packageType", "tba", "packageLabel", "stopType"],
         },
@@ -228,7 +236,7 @@ export const getLiveTraffic = async (stops: RouteStop[]): Promise<TrafficInfo> =
 };
 
 export const getCurrentWeather = async (location: Geolocation): Promise<WeatherInfo> => {
-  const prompt = `What is the current weather at latitude ${location.lat} and longitude ${location.lon}? Provide the temperature (in Fahrenheit, e.g., "72°F") and a brief condition description (e.g., "Clear", "Cloudy"). Respond in JSON format with keys "temperature" and "condition".`;
+  const prompt = `What is the current weather at latitude ${location.lat} and longitude ${location.lon}? Provide the temperature (in Fahrenheit, e.g., "72°F"), a brief condition description (e.g., "Clear", "Partly Cloudy"), and an icon identifier. The icon identifier must be one of the following strings: "SUNNY", "CLOUDY", "RAINY", "SNOWY", "THUNDERSTORM", "WINDY", "PARTLY_CLOUDY", "UNKNOWN". Respond in JSON format with keys "temperature", "condition", and "icon".`;
   
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash',
@@ -240,8 +248,9 @@ export const getCurrentWeather = async (location: Geolocation): Promise<WeatherI
         properties: {
           temperature: { type: Type.STRING },
           condition: { type: Type.STRING },
+          icon: { type: Type.STRING, enum: ["SUNNY", "CLOUDY", "RAINY", "SNOWY", "THUNDERSTORM", "WINDY", "PARTLY_CLOUDY", "UNKNOWN"] },
         },
-        required: ["temperature", "condition"],
+        required: ["temperature", "condition", "icon"],
       },
     },
   });
@@ -250,6 +259,6 @@ export const getCurrentWeather = async (location: Geolocation): Promise<WeatherI
     return JSON.parse(response.text);
   } catch (e) {
     console.error("Failed to parse weather data", e);
-    return { temperature: 'N/A', condition: 'Could not retrieve weather data.' };
+    return { temperature: 'N/A', condition: 'Could not retrieve weather data.', icon: 'UNKNOWN' };
   }
 };

@@ -261,3 +261,68 @@ export const MoonIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
     </svg>
 );
+
+export const CloudIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-5.456-1.043 3.75 3.75 0 00-6.91 1.025A4.5 4.5 0 002.25 15z" />
+    </svg>
+);
+
+export const PartlyCloudyIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1.5M16.636 5.364l-1.06 1.06M21 12h-1.5m-1.06 5.636l-1.06-1.06M12 21v-1.5m-5.636-1.06l1.06-1.06M3 12h1.5m1.06-5.636l1.06 1.06" fill="orange" className="text-yellow-400" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-5.456-1.043 3.75 3.75 0 00-6.91 1.025A4.5 4.5 0 006.75 15h4.5z" className="text-gray-400 dark:text-gray-500"/>
+  </svg>
+);
+
+export const RainIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-5.456-1.043 3.75 3.75 0 00-6.91 1.025A4.5 4.5 0 002.25 15z" className="text-gray-400 dark:text-gray-500"/>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75l-1.5 1.5m3-1.5l-1.5 1.5m3-1.5l-1.5 1.5m3-1.5l-1.5 1.5m3-1.5l-1.5 1.5" />
+  </svg>
+);
+
+export const SnowIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-5.456-1.043 3.75 3.75 0 00-6.91 1.025A4.5 4.5 0 002.25 15z" className="text-gray-400 dark:text-gray-500"/>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 18.75h3M9 20.25h6m-4.5-3l1.5-1.5m-1.5 1.5l-1.5-1.5m6 1.5l1.5-1.5m-1.5 1.5l-1.5-1.5" />
+  </svg>
+);
+
+export const ThunderstormIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-5.456-1.043 3.75 3.75 0 00-6.91 1.025A4.5 4.5 0 002.25 15z" className="text-gray-400 dark:text-gray-500" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 18.75l-2.25-4.5h4.5l-2.25 4.5z" className="text-yellow-400" />
+  </svg>
+);
+
+export const WindyIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12c0-1.657 1.343-3 3-3s3 1.343 3 3-1.343 3-3 3H3m9-6c0-3.314-2.686-6-6-6S3 2.686 3 6m18 6c0-1.657-1.343-3-3-3s-3 1.343-3 3 1.343 3 3 3h3m-9 6c0-3.314 2.686-6 6-6s6 2.686 6 6" />
+  </svg>
+);
+
+export const CheckCircleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
+export const ExclamationCircleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+  </svg>
+);
+
+export const XCircleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
+export const CrosshairIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3.75v16.5M3.75 12h16.5" />
+    </svg>
+);

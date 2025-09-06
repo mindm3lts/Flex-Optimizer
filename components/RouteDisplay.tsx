@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, useCallback } from 'react';
-import type { RouteStop, PackageType, RouteSummary, TrafficInfo, TrafficStatus, StopType } from '../types';
-import { GoogleMapsIcon, DragHandleIcon, TrashIcon, BoxIcon, EnvelopeIcon, PackageIcon, SortIcon, WarningIcon, SparklesIcon, LocationPinIcon, ClockIcon, RoadIcon, HashtagIcon, TrafficIcon, CloseIcon, LinkIcon, MyLocationIcon, NoLeftTurnIcon, BuildingOfficeIcon, TimeConstraintIcon, PriorityIcon, HouseIcon, ApartmentIcon, LockerIcon, ArrowUpIcon, ArrowDownIcon } from './icons';
+import type { RouteStop, PackageType, RouteSummary, TrafficInfo, TrafficStatus, StopType, RouteStopStatus } from '../types';
+import { GoogleMapsIcon, DragHandleIcon, TrashIcon, BoxIcon, EnvelopeIcon, PackageIcon, SortIcon, WarningIcon, SparklesIcon, LocationPinIcon, ClockIcon, RoadIcon, TrafficIcon, CloseIcon, LinkIcon, MyLocationIcon, NoLeftTurnIcon, BuildingOfficeIcon, TimeConstraintIcon, PriorityIcon, HouseIcon, ApartmentIcon, LockerIcon, ArrowUpIcon, ArrowDownIcon, CheckCircleIcon, ExclamationCircleIcon, XCircleIcon, CrosshairIcon, CheckIcon } from './icons';
 
 interface RouteDisplayProps {
   route: RouteStop[];
@@ -154,6 +154,8 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, summary, traf
 
   const locationStop = useMemo(() => route.find(s => s.type === 'location'), [route]);
   const deliveryStops = useMemo(() => route.filter(s => s.type !== 'location'), [route]);
+  
+  const completedCount = useMemo(() => deliveryStops.filter(s => s.status && s.status !== 'pending').length, [deliveryStops]);
 
   const handleFieldChange = (index: number, field: keyof RouteStop, value: string) => {
     const newDeliveryStops = [...deliveryStops];
@@ -162,6 +164,17 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, summary, traf
     onRouteUpdate(newRoute);
   };
   
+  const handleStatusChange = (index: number, status: RouteStopStatus) => {
+    const newDeliveryStops = [...deliveryStops];
+    newDeliveryStops[index] = {
+      ...newDeliveryStops[index],
+      status,
+      completedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    const newRoute = locationStop ? [locationStop, ...newDeliveryStops] : newDeliveryStops;
+    onRouteUpdate(newRoute);
+  };
+
   const handleOpenConstraintModal = (stop: RouteStop, index: number) => {
       setEditingStop({ ...stop });
       setEditingStopIndex(index);
@@ -328,44 +341,58 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, summary, traf
       >
         {locationStop && <LocationStopDisplay stop={locationStop} />}
 
-        {deliveryStops.map((stop, index) => (
+        {deliveryStops.map((stop, index) => {
+          const isCompleted = stop.status && stop.status !== 'pending';
+          return (
           <div
             key={`${stop.originalStopNumber}-${index}`}
-            draggable
-            onDragStart={() => handleDragStart(index)}
-            onDragEnter={() => handleDragEnter(index)}
-            onDragLeave={handleDragLeave}
-            onDrop={() => handleDrop(index)}
-            className={`relative flex items-start bg-gray-100 dark:bg-gray-700/50 p-3 rounded-md transition-all duration-200 ease-in-out ${draggedItemIndex.current === index ? 'opacity-50' : ''}`}
+            draggable={!isCompleted}
+            onDragStart={() => !isCompleted && handleDragStart(index)}
+            onDragEnter={() => !isCompleted && handleDragEnter(index)}
+            onDragLeave={() => !isCompleted && handleDragLeave()}
+            onDrop={() => !isCompleted && handleDrop(index)}
+            className={`relative flex items-start p-3 rounded-md transition-all duration-200 ease-in-out ${
+                isCompleted ? 'bg-gray-200 dark:bg-gray-800 opacity-70' : 'bg-gray-100 dark:bg-gray-700/50'
+            } ${
+                draggedItemIndex.current === index ? 'opacity-50' : ''
+            } ${
+                stop.isCurrentStop ? 'ring-2 ring-cyan-500 shadow-lg' : ''
+            }`}
           >
             <div className="flex items-center self-start pt-1">
               <div className="flex flex-col mr-1">
                   <button
                       onClick={() => handleMove(index, 'up')}
-                      disabled={index === 0}
-                      className="p-0.5 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white disabled:text-gray-600 disabled:cursor-not-allowed"
+                      disabled={index === 0 || isCompleted}
+                      className="p-0.5 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
                       aria-label={`Move stop up`}
                   >
                       <ArrowUpIcon className="w-4 h-4" />
                   </button>
                   <button
                       onClick={() => handleMove(index, 'down')}
-                      disabled={index === deliveryStops.length - 1}
-                      className="p-0.5 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white disabled:text-gray-600 disabled:cursor-not-allowed"
+                      disabled={index === deliveryStops.length - 1 || isCompleted}
+                      className="p-0.5 text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
                       aria-label={`Move stop down`}
                   >
                       <ArrowDownIcon className="w-4 h-4" />
                   </button>
               </div>
-              <DragHandleIcon className="w-6 h-6 text-gray-400 dark:text-gray-500 cursor-grab active:cursor-grabbing" />
+              <DragHandleIcon className={`w-6 h-6 text-gray-400 dark:text-gray-500 ${isCompleted ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}`} />
             </div>
             <div className="flex-grow ml-3">
+                {stop.isCurrentStop && (
+                    <div className="absolute top-2 right-2 flex items-center bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-300 text-xs font-bold px-2 py-1 rounded-full">
+                        <CrosshairIcon className="w-4 h-4 mr-1 animate-pulse" />
+                        Current Stop
+                    </div>
+                )}
                 <div className="flex justify-between items-center text-xs font-mono mb-2">
                     <span className="text-gray-500 dark:text-gray-400">Original: #{stop.originalStopNumber}</span>
                     <span className="font-bold text-cyan-600 dark:text-cyan-400 text-sm">New: #{index + (locationStop ? 2 : 1)}</span>
                 </div>
-              <p className="font-semibold text-gray-800 dark:text-gray-100">{stop.street}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{`${stop.city}, ${stop.state} ${stop.zip}`}</p>
+              <p className={`font-semibold text-gray-800 dark:text-gray-100 ${isCompleted ? 'line-through' : ''}`}>{stop.street}</p>
+              <p className={`text-sm text-gray-600 dark:text-gray-400 ${isCompleted ? 'line-through' : ''}`}>{`${stop.city}, ${stop.state} ${stop.zip}`}</p>
               
               <div className="mt-3 flex items-center space-x-3 flex-wrap gap-y-2">
                 {stop.isPriority && (
@@ -427,6 +454,34 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, summary, traf
                   />
                 </div>
               </div>
+
+               <div className="mt-4 pt-4 border-t border-gray-300 dark:border-gray-600/50">
+                {isCompleted ? (
+                    <div className="flex items-center">
+                        {stop.status === 'delivered' && <CheckCircleIcon className="w-6 h-6 mr-2 text-green-500" />}
+                        {stop.status === 'attempted' && <ExclamationCircleIcon className="w-6 h-6 mr-2 text-yellow-500" />}
+                        {stop.status === 'skipped' && <XCircleIcon className="w-6 h-6 mr-2 text-red-500" />}
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                            {stop.status?.charAt(0).toUpperCase() + stop.status!.slice(1)} at {stop.completedAt}
+                        </p>
+                    </div>
+                ) : (
+                    <>
+                        <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Actions</h4>
+                        <div className="grid grid-cols-3 gap-2">
+                            <button onClick={() => handleStatusChange(index, 'delivered')} className="flex items-center justify-center text-sm font-semibold py-2 px-2 bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900 rounded-md transition-colors">
+                                <CheckIcon className="w-4 h-4 mr-1.5" /> Delivered
+                            </button>
+                            <button onClick={() => handleStatusChange(index, 'attempted')} className="flex items-center justify-center text-sm font-semibold py-2 px-2 bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-300 dark:hover:bg-yellow-900 rounded-md transition-colors">
+                                <WarningIcon className="w-4 h-4 mr-1.5" /> Attempted
+                            </button>
+                            <button onClick={() => handleStatusChange(index, 'skipped')} className="flex items-center justify-center text-sm font-semibold py-2 px-2 bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900 rounded-md transition-colors">
+                                <CloseIcon className="w-4 h-4 mr-1.5" /> Skipped
+                            </button>
+                        </div>
+                    </>
+                )}
+              </div>
             </div>
             <button
               onClick={() => handleDeleteRequest(index)}
@@ -435,26 +490,26 @@ export const RouteDisplay: React.FC<RouteDisplayProps> = ({ route, summary, traf
             >
               <TrashIcon className="w-5 h-5" />
             </button>
-            {draggedOverIndex === index && (
+            {draggedOverIndex === index && !isCompleted && (
               <div className="absolute left-0 right-0 h-1 bg-cyan-500 bottom-0 rounded-full"></div>
             )}
           </div>
-        ))}
+        )})}
       </div>
       
       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
         <h3 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 text-center">Route Summary</h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
              <SummaryItem
-                icon={<HashtagIcon className="w-6 h-6" />}
-                label="Block Code"
-                value={summary?.routeBlockCode ?? 'N/A'}
-                isLoading={isSummaryLoading && !summary?.routeBlockCode}
+                icon={<CheckCircleIcon className="w-6 h-6" />}
+                label="Progress"
+                value={`${completedCount} / ${summary?.totalStops ?? 0}`}
+                isLoading={isSummaryLoading}
             />
             <SummaryItem
                 icon={<LocationPinIcon className="w-6 h-6" />}
-                label="Stops"
-                value={summary?.totalStops ?? 0}
+                label="Stops Left"
+                value={(summary?.totalStops ?? 0) - completedCount}
                 isLoading={isSummaryLoading}
             />
             <SummaryItem
