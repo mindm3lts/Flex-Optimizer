@@ -4,8 +4,9 @@ import { FileUpload } from './components/FileUpload';
 import { RouteDisplay } from './components/RouteDisplay';
 import { Spinner } from './components/Spinner';
 import { LiveConditions } from './components/LiveConditions';
-import { processRouteScreenshot, optimizeRouteOrder, getRouteSummary, getLiveTraffic } from './services/geminiService';
-import type { RouteStop, RouteSummary, TrafficInfo } from './types';
+import { SettingsModal } from './components/SettingsModal';
+import * as aiService from './services/aiService';
+import type { RouteStop, RouteSummary, TrafficInfo, AiSettings } from './types';
 import { InfoIcon, SaveIcon, LoadIcon, CheckIcon, WarningIcon, PlusCircleIcon } from './components/icons';
 
 const App: React.FC = () => {
@@ -20,6 +21,23 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasSavedRoute, setHasSavedRoute] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  const [aiSettings, setAiSettings] = useState<AiSettings>(() => {
+      try {
+          const savedSettings = localStorage.getItem('flex-optimizer-aisettings');
+          if (savedSettings) {
+              return JSON.parse(savedSettings);
+          }
+      } catch (e) {
+          console.error("Could not load AI settings from localStorage", e);
+      }
+      return {
+          provider: 'gemini',
+          apiKey: '',
+          model: 'gemini-2.5-flash'
+      };
+  });
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
@@ -48,6 +66,16 @@ const App: React.FC = () => {
 
   const toggleTheme = () => {
     setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
+  };
+
+  const handleSaveSettings = (newSettings: AiSettings) => {
+    setAiSettings(newSettings);
+    try {
+        localStorage.setItem('flex-optimizer-aisettings', JSON.stringify(newSettings));
+    } catch (e) {
+        console.error("Could not save AI settings to localStorage", e);
+        setError("Could not save AI settings.");
+    }
   };
 
   const updateRouteAndCurrentStop = (newRoute: RouteStop[] | null) => {
@@ -118,10 +146,11 @@ const App: React.FC = () => {
         setIsSummaryLoading(true);
         const existingBlockCode = summary?.routeBlockCode;
         try {
-          const summaryData = await getRouteSummary(deliveryStops);
+          const summaryData = await aiService.getRouteSummary(deliveryStops, aiSettings);
           setSummary({ ...summaryData, routeBlockCode: existingBlockCode });
         } catch (err) {
           console.error("Failed to fetch route summary:", err);
+          setError(err instanceof Error ? err.message : 'An unknown error occurred while fetching summary.');
           setSummary({ totalStops: deliveryStops.length, totalDistance: "N/A", totalTime: "N/A", routeBlockCode: existingBlockCode });
         } finally {
           setIsSummaryLoading(false);
@@ -135,7 +164,7 @@ const App: React.FC = () => {
     };
 
     fetchSummary();
-  }, [route, summary?.routeBlockCode]);
+  }, [route, summary?.routeBlockCode, aiSettings]);
 
   useEffect(() => {
     const deliveryStops = route?.filter(s => s.type !== 'location') ?? [];
@@ -149,7 +178,7 @@ const App: React.FC = () => {
     const fetchTraffic = async () => {
       setIsTrafficLoading(true);
       try {
-        const trafficData = await getLiveTraffic(deliveryStops);
+        const trafficData = await aiService.getLiveTraffic(deliveryStops, aiSettings);
         setTrafficInfo(trafficData);
       } catch (err) {
         console.error("Failed to fetch live traffic:", err);
@@ -171,7 +200,7 @@ const App: React.FC = () => {
         clearInterval(intervalId);
       }
     };
-  }, [route]);
+  }, [route, aiSettings]);
 
   const handleFileChange = (files: File[], mode: 'replace' | 'append' = 'replace') => {
     if (files.length === 0) return;
@@ -225,7 +254,7 @@ const App: React.FC = () => {
 
     try {
       const allResults = await Promise.all(
-        screenshotFiles.map(file => processRouteScreenshot(file))
+        screenshotFiles.map(file => aiService.processRouteScreenshot(file, aiSettings))
       );
 
       const allStops = allResults.flatMap(res => res.stops);
@@ -253,7 +282,7 @@ const App: React.FC = () => {
     } finally {
       setAppStatus('idle');
     }
-  }, [screenshotFiles]);
+  }, [screenshotFiles, aiSettings]);
 
   const handleSaveRoute = useCallback(() => {
     if (route) {
@@ -301,7 +330,7 @@ const App: React.FC = () => {
 
     const performOptimization = async (location?: { lat: number, lon: number }) => {
       try {
-        const optimized = await optimizeRouteOrder(deliveryStops, location, avoidLeftTurns);
+        const optimized = await aiService.optimizeRouteOrder(deliveryStops, location, avoidLeftTurns, aiSettings);
         if (location) {
           const currentLocationStop: RouteStop = {
             originalStopNumber: 0,
@@ -354,7 +383,7 @@ const App: React.FC = () => {
     } else {
       performOptimization();
     }
-  }, [route]);
+  }, [route, aiSettings]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans flex flex-col items-center text-gray-900 dark:text-white transition-colors duration-300">
@@ -362,6 +391,13 @@ const App: React.FC = () => {
         <Header 
           theme={theme}
           toggleTheme={toggleTheme}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+        />
+        <SettingsModal 
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            currentSettings={aiSettings}
+            onSave={handleSaveSettings}
         />
         <main className="flex-grow flex flex-col mt-6">
           {screenshotPreviews.length === 0 && !route && (

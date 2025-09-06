@@ -7,8 +7,9 @@ _Caption: The main interface, ready for you to upload your route screenshots._
 
 ## ✨ Features
 
+-   **⚙️ Configurable AI:** Choose your AI provider. Support for Google Gemini is built-in, and the architecture is ready for more providers.
 -   **📄 Screenshot to Route:** Upload one or more screenshots of your Amazon Flex itinerary.
--   **🤖 AI-Powered Optimization:** Uses the Gemini API to intelligently parse addresses and calculate the most efficient delivery order.
+-   **🤖 AI-Powered Optimization:** Uses AI to intelligently parse addresses and calculate the most efficient delivery order.
 -   **📍 Start From Anywhere:** Optionally use your current GPS location as the starting point for the route.
 -   **↪️ Avoid Left Turns:** An option to generate routes that prefer fewer left turns, saving time and increasing safety.
 -   **👆 Drag & Drop Reordering:** Manually adjust the optimized route to your preference with an intuitive drag-and-drop interface.
@@ -26,16 +27,18 @@ _Caption: An example of a processed and optimized route, ready for navigation._
 
 ## 🚀 Getting Started
 
-To run this application, you will need a Google Gemini API key.
+This application requires an API key from an AI provider to function. Setup is simple and requires no code changes.
 
-### Obtaining an API Key
+### Step 1: Get an API Key
+
+First, you need an API key. Google Gemini is supported out of the box.
 
 1.  Go to [Google AI Studio](https://aistudio.google.com/).
 2.  Sign in with your Google account.
 3.  Click on **"Get API key"** and then **"Create API key in new project"**.
-4.  Copy the generated API key. Keep it safe and do not share it publicly.
+4.  Copy the generated API key. Keep it safe.
 
-### Local Setup (Desktop)
+### Step 2: Local Setup (Desktop)
 
 1.  **Clone the repository:**
     ```bash
@@ -43,76 +46,59 @@ To run this application, you will need a Google Gemini API key.
     cd flex-route-optimizer
     ```
 
-2.  **Set up the API Key:**
-    The application is configured to read the API key from `process.env.API_KEY`. To simulate this in a local environment without a build process, you can add a small script to your `index.html`.
-
-    Open `index.html` and add this script tag inside the `<head>` section, **before** the other scripts:
-    ```html
-    <script>
-      // WARNING: For local development only. Do not commit your API key.
-      window.process = {
-        env: {
-          API_KEY: 'YOUR_GEMINI_API_KEY_HERE'
-        }
-      };
-    </script>
-    ```
-    Replace `YOUR_GEMINI_API_KEY_HERE` with your actual key.
-
-3.  **Run a local server:**
-    Since the app uses ES modules, you need to serve the files from a local web server. A simple way is to use a VS Code extension like [Live Server](https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer) or run a command-line server.
+2.  **Run a local server:**
+    Since the app uses modern web technologies, you need to serve the files from a local web server. A simple way is to use a VS Code extension like [Live Server](https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer) or a command-line tool.
     
     Using Python:
     ```bash
     python -m http.server
     ```
     
-    Using Node.js (requires `serve` package):
+    Using Node.js (requires the `serve` package):
     ```bash
     npm install -g serve
     serve .
     ```
     Now, open your browser and navigate to the local address provided (e.g., `http://localhost:8000` or `http://localhost:3000`).
 
-### Termux Setup (Android)
+3.  **Configure the App:**
+    -   Once the app loads, click the **Settings icon (⚙️)** in the header.
+    -   Select your AI Provider (e.g., "Google Gemini").
+    -   Paste your API key into the "API Key" field.
+    -   The model name (`gemini-2.5-flash`) is pre-filled for Gemini.
+    -   Click "Save Settings". The app is now ready to use!
+
+### Step 3: Termux Setup (Android)
 
 Run the optimizer directly on your Android device using Termux.
 
-1.  **Install Termux:**
-    Download and install Termux from [F-Droid](https://f-droid.org/en/packages/com.termux/).
-
-2.  **Install necessary packages:**
-    Open Termux and run:
+1.  **Install Termux and Tools:**
+    -   Download and install Termux from [F-Droid](https://f-droid.org/en/packages/com.termux/).
+    -   Open Termux and run:
     ```bash
     pkg update && pkg upgrade
     pkg install nodejs git
     ```
 
-3.  **Clone the repository:**
+2.  **Clone the repository:**
     ```bash
     git clone https://github.com/YOUR-USERNAME/flex-route-optimizer.git
     cd flex-route-optimizer
     ```
 
-4.  **Set up the API Key:**
-    As with the local setup, open `index.html` to add your API key. You can use a command-line editor like `nano` or `vim`.
-    ```bash
-    pkg install nano
-    nano index.html 
-    ```
-    Add the same script block from the local setup instructions into the `<head>` of the HTML file. Save and exit (`Ctrl+X`, then `Y`, then `Enter`).
-
-5.  **Start the server:**
+3.  **Start the server:**
     ```bash
     npx serve .
     ```
     `serve` will start a web server and give you a local URL, typically `http://localhost:3000`.
 
-6.  **Access the app:**
-    Open a web browser on your phone (like Chrome or Firefox) and navigate to `http://localhost:3000`. You can now use the app directly on your device!
+4.  **Configure and Use the App:**
+    -   Open a web browser on your phone (like Chrome or Firefox) and navigate to `http://localhost:3000`.
+    -   Follow **Step 3: Configure the App** from the desktop instructions above to enter your API key in the settings menu.
+    -   You can now use the app directly on your device to upload screenshots and optimize routes.
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! If you have ideas for new features, bug fixes, or improvements, please open an issue or submit a pull request.
+Contributions are welcome! If you have ideas for new features (like adding a new AI provider), bug fixes, or improvements, please open an issue or submit a pull request.

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getCurrentWeather } from '../services/geminiService';
-import type { WeatherInfo, WeatherIconType } from '../types';
+import { getCurrentWeather } from '../services/aiService';
+import type { WeatherInfo, WeatherIconType, AiSettings } from '../types';
 import { ThermometerIcon, WarningIcon, SunIcon, CloudIcon, PartlyCloudyIcon, RainIcon, SnowIcon, ThunderstormIcon, WindyIcon } from './icons';
 
 const WeatherIcon: React.FC<{ icon: WeatherIconType }> = ({ icon }) => {
@@ -31,24 +31,37 @@ export const LiveConditions: React.FC = () => {
     const [weather, setWeather] = useState<WeatherInfo | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [aiSettings, setAiSettings] = useState<AiSettings | null>(null);
 
     useEffect(() => {
-        const CACHE_KEY = 'flex-optimizer-weather-cache';
-        const CACHE_DURATION_MS = 15 * 60 * 1000; // 15 minutes
-
         const fetchWeather = () => {
              try {
-                const cachedDataJSON = localStorage.getItem(CACHE_KEY);
+                const savedSettings = localStorage.getItem('flex-optimizer-aisettings');
+                if (savedSettings) {
+                    const parsedSettings = JSON.parse(savedSettings) as AiSettings;
+                    if (!parsedSettings.apiKey) {
+                        setError("API key not set in settings.");
+                        setIsLoading(false);
+                        return;
+                    }
+                    setAiSettings(parsedSettings);
+                } else {
+                    setError("AI settings not configured.");
+                    setIsLoading(false);
+                    return;
+                }
+
+                const cachedDataJSON = localStorage.getItem('flex-optimizer-weather-cache');
                 if (cachedDataJSON) {
                     const { data, timestamp } = JSON.parse(cachedDataJSON);
-                    if (Date.now() - timestamp < CACHE_DURATION_MS) {
+                    if (Date.now() - timestamp < (15 * 60 * 1000)) { // 15 minutes cache
                         setWeather(data);
                         setIsLoading(false);
                         return;
                     }
                 }
             } catch (e) {
-                console.error("Could not read weather from cache", e);
+                console.error("Could not read from cache or settings", e);
             }
 
             if (!navigator.geolocation) {
@@ -59,22 +72,28 @@ export const LiveConditions: React.FC = () => {
 
             navigator.geolocation.getCurrentPosition(
                 async (position) => {
+                    if (!aiSettings) {
+                        // This case is handled above, but as a safeguard.
+                        setError("AI settings are missing.");
+                        setIsLoading(false);
+                        return;
+                    }
                     try {
                         const { latitude, longitude } = position.coords;
-                        const weatherData = await getCurrentWeather({ lat: latitude, lon: longitude });
+                        const weatherData = await getCurrentWeather({ lat: latitude, lon: longitude }, aiSettings);
                         setWeather(weatherData);
                         setError(null);
                         
                         try {
                             const cacheEntry = { data: weatherData, timestamp: Date.now() };
-                            localStorage.setItem(CACHE_KEY, JSON.stringify(cacheEntry));
+                            localStorage.setItem('flex-optimizer-weather-cache', JSON.stringify(cacheEntry));
                         } catch (e) {
                              console.error("Could not save weather to cache", e);
                         }
                     } catch (err) {
                         console.error("Failed to fetch weather data:", err);
-                        if (err instanceof Error && err.message.includes('RESOURCE_EXHAUSTED')) {
-                           setError("Weather service is busy. Please try again later.");
+                        if (err instanceof Error && err.message.includes('API key')) {
+                           setError("Invalid API key for weather service.");
                         } else {
                            setError("Could not retrieve weather data.");
                         }
@@ -97,7 +116,7 @@ export const LiveConditions: React.FC = () => {
             );
         };
         fetchWeather();
-    }, []);
+    }, [aiSettings]); // Re-run if settings change (though they won't in this component's lifecycle)
 
     const renderContent = () => {
         if (isLoading) {

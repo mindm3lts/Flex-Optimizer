@@ -50,3 +50,9 @@ export interface Geolocation {
   lat: number;
   lon: number;
 }
+
+export interface AiSettings {
+  provider: 'gemini' | string; // Allow for future providers
+  apiKey: string;
+  model: string;
+}
