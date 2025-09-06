@@ -4,9 +4,8 @@ import { FileUpload } from './components/FileUpload';
 import { RouteDisplay } from './components/RouteDisplay';
 import { Spinner } from './components/Spinner';
 import { LiveConditions } from './components/LiveConditions';
-import { SubscriptionModal } from './components/SubscriptionModal';
 import { processRouteScreenshot, optimizeRouteOrder, getRouteSummary, getLiveTraffic } from './services/geminiService';
-import type { RouteStop, RouteSummary, TrafficInfo, WeatherInfo, User } from './types';
+import type { RouteStop, RouteSummary, TrafficInfo, WeatherInfo } from './types';
 import { InfoIcon, SaveIcon, LoadIcon, CheckIcon, WarningIcon, PlusCircleIcon } from './components/icons';
 
 const App: React.FC = () => {
@@ -23,10 +22,6 @@ const App: React.FC = () => {
   const [hasSavedRoute, setHasSavedRoute] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
 
-  const [user, setUser] = useState<User>({ tier: 'Free' });
-  const [routeCount, setRouteCount] = useState<number>(0);
-  const [isSubModalOpen, setIsSubModalOpen] = useState(false);
-  
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
         const savedTheme = localStorage.getItem('flex-optimizer-theme') as 'light' | 'dark' | null;
@@ -79,16 +74,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     try {
-        const savedTier = localStorage.getItem('flex-optimizer-tier') as 'Free' | 'Pro' | null;
-        const savedCount = localStorage.getItem('flex-optimizer-count');
         const savedRoute = localStorage.getItem('flex-optimizer-saved-route');
-
-        if (savedTier) {
-            setUser({ tier: savedTier });
-        }
-        if (savedCount) {
-            setRouteCount(parseInt(savedCount, 10));
-        }
         setHasSavedRoute(!!savedRoute);
     } catch (e) {
         console.error("Could not load user data from localStorage", e);
@@ -232,12 +218,6 @@ const App: React.FC = () => {
       setError('Please upload one or more screenshots first.');
       return;
     }
-    
-    if (user.tier === 'Free' && routeCount >= 5) {
-        setError("You've reached your free limit of 5 routes per month. Please upgrade to Pro.");
-        setIsSubModalOpen(true);
-        return;
-    }
 
     setAppStatus('processing');
     setError(null);
@@ -265,12 +245,6 @@ const App: React.FC = () => {
         const sortedAddresses = [...addresses].sort((a, b) => a.originalStopNumber - b.originalStopNumber);
         updateRouteAndCurrentStop(sortedAddresses);
         setSummary({ totalStops: sortedAddresses.length, totalDistance: "...", totalTime: "...", routeBlockCode });
-        
-        if (user.tier === 'Free') {
-          const newCount = routeCount + 1;
-          setRouteCount(newCount);
-          localStorage.setItem('flex-optimizer-count', newCount.toString());
-        }
       } else {
         setError('Could not extract any addresses from the images. Please try other screenshots.');
       }
@@ -280,7 +254,7 @@ const App: React.FC = () => {
     } finally {
       setAppStatus('idle');
     }
-  }, [screenshotFiles, user, routeCount]);
+  }, [screenshotFiles]);
 
   const handleSaveRoute = useCallback(() => {
     if (route) {
@@ -383,20 +357,10 @@ const App: React.FC = () => {
     }
   }, [route]);
 
-  const handleSubscriptionChange = (newTier: 'Free' | 'Pro') => {
-      setUser({ tier: newTier });
-      localStorage.setItem('flex-optimizer-tier', newTier);
-      if (newTier === 'Pro') {
-          setIsSubModalOpen(false); 
-          setError(null); 
-      }
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans flex flex-col items-center text-gray-900 dark:text-white transition-colors duration-300">
       <div className="w-full max-w-md mx-auto p-4 flex flex-col flex-grow">
         <Header 
-          onOpenSubModal={() => setIsSubModalOpen(true)}
           theme={theme}
           toggleTheme={toggleTheme}
         />
@@ -535,13 +499,6 @@ const App: React.FC = () => {
           </div>
         </main>
       </div>
-      {isSubModalOpen && (
-          <SubscriptionModal
-              user={user}
-              onClose={() => setIsSubModalOpen(false)}
-              onSubscriptionChange={handleSubscriptionChange}
-          />
-      )}
     </div>
   );
 };

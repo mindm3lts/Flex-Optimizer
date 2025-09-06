@@ -51,6 +51,7 @@ export interface Geolocation {
   lon: number;
 }
 
+// FIX: Add User interface to resolve import error in SubscriptionModal.tsx
 export interface User {
   tier: 'Free' | 'Pro';
 }
